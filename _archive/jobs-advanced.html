@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulate & Cron Jobs</title>
+<style>
+  :root {
+    --bg:#f0f2f5; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e3e6ea;
+    --acc:#2557d6; --acc2:#1a44b8; --pos:#15803d; --neg:#b91c1c; --warn:#b45309;
+    --radius:12px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f1117;--card:#1a1f28;--ink:#e8eaed;--mute:#9aa3ad;--line:#2a313a;--acc:#6b93ff;--acc2:#4f78f0;--pos:#4ade80;--neg:#f87171;--warn:#fbbf24;}
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:14px/1.6 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+  main{width:96%;max-width:1200px;margin:0 auto;padding:24px 20px 80px}
+  h1{font-size:24px;font-weight:700;letter-spacing:-.3px}
+  .sub{color:var(--mute);font-size:13px;margin:2px 0 18px}
+  a{color:var(--acc);text-decoration:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px;margin-bottom:14px}
+  .card-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin-bottom:12px}
+  .tabs{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:14px}
+  .tabs button{font:inherit;padding:8px 18px;border:0;background:transparent;color:var(--mute);cursor:pointer;font-weight:600}
+  .tabs button.active{background:var(--acc);color:#fff}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
+  .fld{display:flex;flex-direction:column;gap:4px;min-width:150px}
+  .fld label,.lbl{font-size:12px;font-weight:600;color:var(--mute)}
+  input[type=number],input[type=text],select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  textarea{min-width:320px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:1px}
+  input[type=number]{width:120px}
+  .checks{display:flex;gap:6px 14px;flex-wrap:wrap}
+  .checks label{display:inline-flex;gap:5px;align-items:center;font-size:13px;cursor:pointer}
+  .hint{font-size:12px;color:var(--mute)}
+  .btn{font:inherit;padding:10px 26px;border:0;border-radius:9px;background:var(--acc);color:#fff;cursor:pointer;font-weight:700}
+  .btn:hover{background:var(--acc2)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.sec{background:transparent;color:var(--neg);border:1px solid var(--neg)}
+  .badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid currentColor}
+  .st-running{color:var(--acc)}.st-waiting{color:var(--warn)}.st-done{color:var(--pos)}.st-error{color:var(--neg)}.st-cancelled{color:var(--mute)}
+  .bar{height:10px;border-radius:99px;background:var(--bg);border:1px solid var(--line);overflow:hidden;margin:10px 0 4px}
+  .bar>div{height:100%;background:var(--acc);transition:width .4s}
+  pre.log{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin-bottom:6px}
+  th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+  .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+  .kv div{padding:8px 12px;border:1px solid var(--line);border-radius:8px}
+  .kv b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);font-weight:600}
+  h3{font-size:13px;margin:16px 0 8px}
+  .flag{padding:6px 12px;border-radius:8px;margin-bottom:6px;font-size:13px}
+  .flag.warn{background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+  .flag.ok{background:color-mix(in srgb,var(--pos) 10%,transparent);border:1px solid color-mix(in srgb,var(--pos) 30%,transparent)}
+  .hist a{display:block;padding:5px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  .err{color:var(--neg);font-size:13px;margin-top:8px;white-space:pre-wrap}
+  [hidden]{display:none!important}
+</style>
+<link rel="stylesheet" href="/shell.css">
+<script src="/shell.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Simulate &amp; Cron Jobs</h1>
+  <p class="sub"><a href="/">← Media Search</a> &nbsp;·&nbsp; Job jalan di background di server; halaman ini boleh ditutup dan dibuka lagi. <span id="keyinfo"></span></p>
+
+  <div class="card">
+    <div class="card-title">New job</div>
+    <div class="tabs">
+      <button type="button" id="tabSim" class="active">Simulate (kualitas data)</button>
+      <button type="button" id="tabCron">Cron crawl (volume besar)</button>
+      <button type="button" id="tabAll">Semua perusahaan</button>
+    </div>
+    <p class="hint" id="typeHint" style="margin-bottom:12px"></p>
+
+    <div class="row allonly" hidden><div class="fld"><span class="lbl">Perusahaan <span class="hint">(kosong = semua)</span></span><div class="checks" id="allCompanies"></div></div></div>
+    <div class="row" id="entityRow">
+      <div class="fld"><label for="company">Entity</label><select id="company"></select></div>
+      <div class="fld" id="kwBox" hidden><label for="kw">Keyword (pisah koma)</label><textarea id="kw" rows="2" placeholder="Telkom, TLKM, Danantara"></textarea></div>
+    </div>
+    <div class="row"><div class="fld"><span class="lbl">Sources</span><div class="checks" id="sources"></div></div></div>
+    <div class="row"><div class="fld"><span class="lbl">Modifiers</span><div class="checks" id="modifiers"></div></div></div>
+
+    <div class="row allonly" hidden>
+      <div class="fld"><label for="coDelay">Jeda antar perusahaan (detik)</label><input type="number" id="coDelay" value="20" min="0" max="3600"></div>
+      <label class="checks"><span><input type="checkbox" id="doFin" checked> Ambil data keuangan (emiten)</span></label>
+      <label class="checks"><span><input type="checkbox" id="doAna"> Buat analisis AI setelah crawl</span></label>
+    </div>
+    <div class="row" id="dryRow">
+      <label class="checks"><span><input type="checkbox" id="dry"> Dry run (data sintetis, tanpa jaringan &amp; tanpa Groq)</span></label>
+      <label class="checks"><span><input type="checkbox" id="classify"> Ikut klasifikasi AI (Groq)</span></label>
+    </div>
+
+    <div class="row">
+      <div class="fld"><label for="concurrency">Concurrency</label><input type="number" id="concurrency" value="3" min="1" max="6"></div>
+      <div class="fld sim"><label for="maxAge">Max umur data (hari)</label><input type="number" id="maxAge" value="7" min="1" max="60"></div>
+      <div class="fld cron"><label for="chunkSize">Job per work (chunk)</label><input type="number" id="chunkSize" value="6" min="1" max="100"></div>
+      <div class="fld cron"><label for="delay">Jeda antar work (detik)</label><input type="number" id="delay" value="15" min="0" max="600"></div>
+      <div class="fld cron"><label for="aiChunk">Item per AI work</label><input type="number" id="aiChunk" value="60" min="1" max="500"></div>
+      <div class="fld cron"><label for="aiDelay">Jeda antar AI work (detik)</label><input type="number" id="aiDelay" value="3" min="0" max="600"></div>
+      <div class="fld cronx" id="fakeBox" hidden><label for="fakeJobs">Jumlah job sintetis</label><input type="number" id="fakeJobs" value="600" min="1" max="5000"></div>
+      <div class="fld cronx"><label for="everyMin">Ulangi tiap (menit, 0 = sekali)</label><input type="number" id="everyMin" value="0" min="0"></div>
+      <div class="fld cronx"><label for="maxCycles">Maks siklus (mode ulang)</label><input type="number" id="maxCycles" value="3" min="1"></div>
+    </div>
+
+    <div class="row" style="margin-bottom:0">
+      <button class="btn" id="start" type="button">Start</button>
+      <button class="btn sec" id="cancel" type="button" hidden>Cancel</button>
+      <span class="hint" id="qcount"></span>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="card" id="statusCard" hidden>
+    <div class="card-title">Job status</div>
+    <div><span class="badge" id="stBadge"></span> &nbsp; <b id="stTitle"></b> <span class="hint" id="stId"></span></div>
+    <div class="bar"><div id="barFill" style="width:0"></div></div>
+    <div class="hint" id="stText"></div>
+    <pre class="log" id="log"></pre>
+  </div>
+
+  <div class="card" id="reportCard" hidden>
+    <div class="card-title">Report <span id="repName" style="text-transform:none;letter-spacing:0"></span></div>
+    <div id="report"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Laporan tersimpan (data/reports)</div>
+    <div class="hist" id="hist"><span class="hint">Belum ada.</span></div>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ACTIVE = ['running', 'waiting'];
+let cfg, type = 'simulate', jobId = null, timer = null;
+
+const HINTS = {
+  simulate: 'Sekali jalan: ambil data dari sumber terpilih lalu laporkan seberapa bagus diambil (gagal/kosong/latensi) dan seberapa valid (kelengkapan, kesegaran, lolos clean, hasil AI).',
+  all: 'Menjalankan semua perusahaan sekaligus di background, BERURUTAN (satu perusahaan selesai baru lanjut ke berikutnya, ada jeda). Tiap perusahaan: data keuangan, crawl terpecah (work1, work2, ...), klasifikasi AI terpecah, lalu disimpan ke DB untuk portal. Halaman ini boleh ditutup.',
+  cron: 'Pola cron: semua query dipecah jadi work1, work2, work3... dijalankan berurutan dengan jeda. Cocok untuk volume besar. Dry run memproyeksikan durasi dan jumlah call Groq tanpa menyentuh jaringan.',
+};
+
+// ─── Init ──────────────────────────────────────────────
+(async () => {
+  cfg = await (await fetch('/api/config')).json();
+  $('#keyinfo').textContent = `Groq API key: ${cfg.groqKeyCount ?? (cfg.groqReady ? 1 : 0)}`;
+  $('#company').innerHTML = cfg.companies.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('') + '<option value="">— keyword manual —</option>';
+  $('#allCompanies').innerHTML = cfg.companies.map((c) => '<label><input type="checkbox" name="co" value="' + esc(c.id) + '"> ' + esc(c.ticker || c.name) + '</label>').join('');
+  $('#sources').innerHTML = cfg.sources.filter((s) => !s.disabled).map((s) => `<label><input type="checkbox" name="src" value="${esc(s.key)}" checked> ${esc(s.label)}</label>`).join('');
+  $('#modifiers').innerHTML = cfg.modifiers.map((m) => `<label><input type="checkbox" name="mod" value="${esc(m.key)}" ${m.key === 'none' ? 'checked' : ''}> ${esc(m.label)}</label>`).join('');
+  document.querySelectorAll('input,select,textarea').forEach((el) => el.addEventListener('input', updateForm));
+  setType('simulate');
+  loadHistory();
+  // Sambungkan ke job yang masih aktif (mis. halaman dibuka ulang)
+  const jobs = await (await fetch('/api/jobs')).json();
+  const active = jobs.find((j) => ACTIVE.includes(j.status)) || jobs[0];
+  if (active) attach(active.id);
+})();
+
+function setType(t) {
+  type = t;
+  $('#tabSim').classList.toggle('active', t === 'simulate');
+  $('#tabCron').classList.toggle('active', t === 'cron');
+  $('#tabAll').classList.toggle('active', t === 'all');
+  if (t === 'all') {   // preset: sumber yang andal saja (Google Social sering kena CAPTCHA) dan klasifikasi AI aktif
+    document.querySelectorAll('input[name=src]').forEach((i) => { i.checked = ['google_news', 'bing_news', 'youtube'].includes(i.value); });
+    $('#classify').checked = true;
+  }
+  $('#typeHint').textContent = HINTS[t];
+  updateForm();
+}
+$('#tabSim').onclick = () => setType('simulate');
+$('#tabCron').onclick = () => setType('cron');
+$('#tabAll').onclick = () => setType('all');
+
+function checked(name) { return [...document.querySelectorAll(`input[name=${name}]:checked`)].map((i) => i.value); }
+
+function keywordCount() {
+  const id = $('#company').value;
+  if (id) {
+    const c = cfg.companies.find((x) => x.id === id);
+    return new Set([c.name, ...(c.aliases || []), ...(c.stakeholders || []).map((s) => s.name)]).size;
+  }
+  return $('#kw').value.split(',').map((s) => s.trim()).filter(Boolean).length;
+}
+
+function updateForm() {
+  if (!cfg) return;
+  $('#kwBox').hidden = Boolean($('#company').value);
+  document.querySelectorAll('.sim').forEach((e) => (e.hidden = type !== 'simulate'));
+  document.querySelectorAll('.cron').forEach((e) => (e.hidden = type !== 'cron' && type !== 'all'));
+  document.querySelectorAll('.cronx').forEach((e) => (e.hidden = type !== 'cron'));
+  document.querySelectorAll('.allonly').forEach((e) => (e.hidden = type !== 'all'));
+  $('#entityRow').hidden = type === 'all';
+  $('#dryRow').hidden = type === 'all';
+  $('#fakeBox').hidden = !(type === 'cron' && $('#dry').checked);
+  if (type === 'all') {
+    const sel = checked('co').length || cfg.companies.length;
+    $('#qcount').textContent = sel + ' perusahaan, berurutan';
+    return;
+  }
+  const n = keywordCount() * checked('src').length * checked('mod').length;
+  const fake = type === 'cron' && $('#dry').checked ? Number($('#fakeJobs').value) || n : n;
+  const chunk = Number($('#chunkSize').value) || 1;
+  $('#qcount').textContent = type === 'cron'
+    ? `${fake} query → ${Math.ceil(fake / chunk)} work`
+    : `${n} query`;
+}
+
+function buildOptions() {
+  if (type === 'all') {
+    return {
+      companies: checked('co'), sources: checked('src'), modifiers: checked('mod'), classify: $('#classify').checked,
+      financial: $('#doFin').checked, analysis: $('#doAna').checked, concurrency: Number($('#concurrency').value),
+      chunkSize: Number($('#chunkSize').value), delayMs: Number($('#delay').value) * 1000,
+      aiChunk: Number($('#aiChunk').value), aiDelayMs: Number($('#aiDelay').value) * 1000,
+      companyDelayMs: Number($('#coDelay').value) * 1000,
+    };
+  }
+  const o = { sources: checked('src'), modifiers: checked('mod'), dry: $('#dry').checked, classify: $('#classify').checked, concurrency: Number($('#concurrency').value) };
+  if ($('#company').value) o.company = $('#company').value; else o.keywords = $('#kw').value;
+  if (type === 'simulate') {
+    o.maxAgeDays = Number($('#maxAge').value);
+  } else {
+    Object.assign(o, {
+      chunkSize: Number($('#chunkSize').value), delayMs: Number($('#delay').value) * 1000,
+      aiChunk: Number($('#aiChunk').value), aiDelayMs: Number($('#aiDelay').value) * 1000,
+      everyMin: Number($('#everyMin').value), maxCycles: Number($('#maxCycles').value),
+    });
+    if (o.dry) o.fakeJobs = Number($('#fakeJobs').value);
+  }
+  return o;
+}
+
+// ─── Start / cancel ────────────────────────────────────
+$('#start').onclick = async () => {
+  $('#err').textContent = '';
+  if (!checked('src').length) { $('#err').textContent = 'Pilih minimal satu source.'; return; }
+  const r = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, options: buildOptions() }) });
+  const j = await r.json();
+  if (!r.ok) { $('#err').textContent = j.error; return; }
+  $('#report').innerHTML = ''; $('#reportCard').hidden = true;
+  attach(j.id);
+};
+$('#cancel').onclick = async () => { if (jobId) await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' }); };
+
+// ─── Polling status job ────────────────────────────────
+function attach(id) {
+  jobId = id;
+  clearInterval(timer);
+  poll();
+  timer = setInterval(poll, 1500);
+}
+
+async function poll() {
+  const r = await fetch(`/api/jobs/${jobId}`);
+  if (!r.ok) { clearInterval(timer); return; }
+  const j = await r.json();
+  renderJob(j);
+  if (!ACTIVE.includes(j.status)) { clearInterval(timer); loadHistory(); }
+}
+
+function renderJob(j) {
+  const active = ACTIVE.includes(j.status);
+  const p = j.progress || {};
+  $('#statusCard').hidden = false;
+  $('#start').disabled = active;
+  $('#cancel').hidden = !active;
+  $('#stBadge').className = `badge st-${j.status}`;
+  $('#stBadge').textContent = j.status;
+  $('#stTitle').textContent = { cron: 'Cron crawl', portfolio: 'Semua perusahaan', simulate: 'Simulate' }[j.type] || j.type;
+  $('#stId').textContent = `#${j.id}`;
+  let pct = p.total ? Math.round((p.done / p.total) * 100) : (j.status === 'done' ? 100 : 0);
+  if (p.companyTotal && j.type === 'portfolio') pct = Math.round((((p.companyIndex - 1) + (p.total ? Math.min(1, p.done / p.total) : 0)) / p.companyTotal) * 100);
+  $('#barFill').style.width = `${Math.min(100, pct)}%`;
+  const bits = [];
+  if (p.companyTotal) bits.push('perusahaan ' + p.companyIndex + '/' + p.companyTotal + ': ' + p.company);
+  if (p.cycle) bits.push(`cycle ${p.cycle}`);
+  if (p.stage && !['done', 'error', 'cancelled'].includes(p.stage)) bits.push(`tahap: ${p.stage}`);
+  if (p.work) bits.push(p.work);
+  if (p.total) bits.push(`${p.done}/${p.total}`);
+  if (p.stage === 'waiting' && p.nextRunAt) bits.push(`siklus berikutnya ${new Date(p.nextRunAt).toLocaleTimeString('id-ID')}`);
+  if (j.error) bits.push(`error: ${j.error}`);
+  $('#stText').textContent = bits.join(' · ');
+  const log = $('#log');
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+  log.textContent = j.logs.join('\n');
+  if (stick) log.scrollTop = log.scrollHeight;
+  const last = j.reports?.[j.reports.length - 1];
+  if (last) renderReport(last, last.file);
+}
+
+// ─── Laporan ───────────────────────────────────────────
+const fmt = (v) => (v && typeof v === 'object' ? esc(JSON.stringify(v)) : esc(v));
+const kv = (o) => `<div class="kv">${Object.entries(o).map(([k, v]) => `<div><b>${esc(k)}</b>${fmt(v)}</div>`).join('')}</div>`;
+const table = (rows, first) => {
+  const list = Array.isArray(rows) ? rows : Object.entries(rows).map(([k, v]) => ({ [first]: k, ...v }));
+  if (!list.length) return '<span class="hint">kosong</span>';
+  const cols = Object.keys(list[0]);
+  return `<table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${list.map((r) => `<tr>${cols.map((c) => `<td>${Array.isArray(r[c]) ? r[c].map(esc).join('<br>') : fmt(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+};
+
+function renderReport(r, name) {
+  $('#reportCard').hidden = false;
+  $('#repName').textContent = name ? `· ${name}` : '';
+  const flags = (r.health || []).length
+    ? r.health.map((f) => `<div class="flag warn">⚠ ${esc(f)}</div>`).join('')
+    : '<div class="flag ok">✓ Tidak ada peringatan.</div>';
+  let h = flags + `<h3>Konfigurasi</h3>${kv(r.config || {})}`;
+  if (r.perWork) h += `<h3>Per work</h3>${table(r.perWork)}`;
+  h += `<h3>Fetch per sumber (seberapa bagus diambil)</h3>${table(r.fetch || {}, 'source')}`;
+  h += `<h3>Kualitas data mentah</h3>${kv(r.raw || {})}`;
+  if (r.financial) h += `<h3>Data keuangan (perusahaan terbuka)</h3>${kv(r.financial)}`;
+  h += `<h3>Hasil pembersihan (seberapa valid)</h3>${kv(r.clean || {})}`;
+  if (r.ai) h += `<h3>Klasifikasi AI + komponen non-AI</h3>${kv(r.ai)}`;
+  if (r.aiProjection) h += `<h3>Proyeksi tahap AI</h3>${kv(r.aiProjection)}`;
+  h += `<h3>Waktu</h3>${kv(r.timing || {})}`;
+  $('#report').innerHTML = h;
+}
+
+async function loadHistory() {
+  const rows = await (await fetch('/api/reports')).json();
+  $('#hist').innerHTML = rows.length
+    ? rows.map((x) => `<a data-n="${esc(x.name)}">${esc(x.name)} <span class="hint">· ${new Date(x.mtime).toLocaleString('id-ID')}</span></a>`).join('')
+    : '<span class="hint">Belum ada.</span>';
+  document.querySelectorAll('#hist a').forEach((a) => (a.onclick = async () => {
+    const r = await fetch(`/api/reports/${encodeURIComponent(a.dataset.n)}`);
+    if (r.ok) { renderReport(await r.json(), a.dataset.n); window.scrollTo({ top: $('#reportCard').offsetTop - 10, behavior: 'smooth' }); }
+  }));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+[
+  {"name": "antara",        "category": "news", "domain": "antaranews.com",     "rss": ["https://www.antaranews.com/rss/terkini.xml"]},
+  {"name": "cnn-indonesia", "category": "news", "domain": "cnnindonesia.com",   "rss": ["https://www.cnnindonesia.com/nasional/rss", "https://www.cnnindonesia.com/ekonomi/rss"]},
+  {"name": "tempo",         "category": "news", "domain": "tempo.co",           "rss": ["https://rss.tempo.co/nasional", "https://rss.tempo.co/bisnis"]},
+  {"name": "cnbc-indonesia","category": "news", "domain": "cnbcindonesia.com",  "rss": ["https://www.cnbcindonesia.com/news/rss"]},
+  {"name": "republika",     "category": "news", "domain": "republika.co.id",    "rss": ["https://www.republika.co.id/rss"]},
+  {"name": "okezone",       "category": "news", "domain": "okezone.com",        "rss": ["https://sindikasi.okezone.com/index.php/rss/0/RSS2.0"]},
+  {"name": "sindonews",     "category": "news", "domain": "sindonews.com",      "rss": ["https://www.sindonews.com/feed"]},
+  {"name": "viva",          "category": "news", "domain": "viva.co.id",         "rss": ["https://www.viva.co.id/get/all"]},
+  {"name": "media-indonesia","category": "news","domain": "mediaindonesia.com", "rss": ["https://mediaindonesia.com/feed"]},
+  {"name": "kumparan",      "category": "news", "domain": "kumparan.com",       "rss": ["https://lapi.kumparan.com/v2.0/rss/"]},
+  {"name": "detik",         "category": "news", "domain": "detik.com",          "rss": ["https://rss.detik.com/index.php/detikcom"]},
+  {"name": "kompas",        "category": "news", "domain": "kompas.com"},
+  {"name": "kontan",        "category": "news", "domain": "kontan.co.id"},
+  {"name": "liputan6",      "category": "news", "domain": "liputan6.com"},
+  {"name": "tribunnews",    "category": "news", "domain": "tribunnews.com"},
+  {"name": "bisnis",        "category": "news", "domain": "bisnis.com"},
+
+  {"name": "kompasiana",    "category": "blog", "domain": "kompasiana.com"},
+  {"name": "medium-indonesia","category": "blog","domain": "medium.com",        "rss": ["https://medium.com/feed/tag/indonesia"]},
+  {"name": "blogspot-id",   "category": "blog", "domain": "blogger.com",        "enabled": false, "rss": []},
+
+  {"name": "kaskus",        "category": "forum","domain": "kaskus.co.id"},
+  {"name": "reddit-indonesia","category": "forum","domain": "reddit.com",       "rss": ["https://www.reddit.com/r/indonesia/.rss", "https://www.reddit.com/r/finansial/.rss"]},
+  {"name": "mastodon-id",   "category": "social","domain": "mastodon.social",   "rss": ["https://mastodon.social/tags/indonesia.rss"]},
+
+  {"name": "ojk",           "category": "government","domain": "ojk.go.id"},
+  {"name": "bank-indonesia","category": "government","domain": "bi.go.id"},
+  {"name": "kemenkeu",      "category": "government","domain": "kemenkeu.go.id"},
+  {"name": "esdm",          "category": "government","domain": "esdm.go.id"},
+  {"name": "komdigi",       "category": "government","domain": "komdigi.go.id"},
+  {"name": "idx",           "category": "corporate","domain": "idx.co.id"},
+  {"name": "telkom-corp",   "category": "corporate","domain": "telkom.co.id"},
+  {"name": "pertamina-corp","category": "corporate","domain": "pertamina.com"}
+]

@@ -1,0 +1,7 @@
+# Satu query per baris:  nama: ekspresi   (atau ekspresi saja)
+# Operator AND / OR / NOT (HURUF BESAR), "frasa pasti", kata* (awalan), ( ) untuk grup.
+korupsi: korup* OR suap OR gratifikasi
+banjir: banjir AND NOT "banjir bandang informasi"
+pilkada: pilkada OR "pemilihan kepala daerah"
+telkom: Telkom OR TLKM OR "Telkom Indonesia"
+pertamina: Pertamina AND (BBM OR kilang OR direksi OR korupsi)

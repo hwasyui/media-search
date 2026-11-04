@@ -1,0 +1,40 @@
+/* Shell bersama (sidebar) untuk semua halaman. Gaya flat korporat: sudut tegas, tanpa gradasi. */
+:root{
+  --sh-bg:#0b0d10; --sh-side:#0e1115; --sh-line:#232932; --sh-text:#e6e9ed; --sh-muted:#8a93a0; --sh-dim:#5b636e;
+  --sh-accent:#4c8dff; --sh-red:#ef5b5b; --sh-green:#2fbf71;
+}
+/* Tanpa sudut membulat di seluruh aplikasi (kecuali elemen yang sengaja bulat: .keep-round) */
+*,*::before,*::after{border-radius:2px !important}
+.keep-round,.keep-round::before,.keep-round::after{border-radius:50% !important}
+
+body.has-shell{display:grid !important;grid-template-columns:232px minmax(0,1fr);min-height:100vh;margin:0;background:var(--sh-bg)}
+.shell-side{background:var(--sh-side);border-right:1px solid var(--sh-line);position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;padding:16px 0;font:13.5px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--sh-text);z-index:30}
+.shell-side a{color:inherit;text-decoration:none}
+.shell-logo{display:flex;align-items:center;gap:10px;padding:2px 18px 18px;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.shell-logo i{display:grid;place-items:center;width:26px;height:26px;background:var(--sh-accent);color:#fff;font-style:normal;font-size:13px;font-weight:800}
+.shell-h{font-size:10.5px;letter-spacing:.12em;color:var(--sh-dim);font-weight:700;padding:16px 18px 6px;text-transform:uppercase}
+.shell-nav a{display:flex;align-items:center;gap:10px;padding:8px 18px;color:var(--sh-muted);border-left:2px solid transparent}
+.shell-nav a:hover{background:#12161b;color:var(--sh-text)}
+.shell-nav a.on{background:#141920;color:var(--sh-text);border-left-color:var(--sh-accent)}
+.shell-nav .tk{font-weight:700;font-size:12px;width:44px;color:var(--sh-text);font-variant-numeric:tabular-nums}
+.shell-nav .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;flex:1}
+.shell-nav .st{width:7px;height:7px;background:var(--sh-dim);flex:none}
+.shell-nav .st.risk{background:var(--sh-red)} .shell-nav .st.ok{background:var(--sh-green)} .shell-nav .st.amber{background:#fbbf24} .shell-nav .st.orange{background:#f08a4b}
+.shell-nav .st{cursor:help}
+.shell-foot{margin-top:auto;padding:14px 18px;font-size:11.5px;color:var(--sh-dim);border-top:1px solid var(--sh-line)}
+.shell-main{min-width:0}
+.shell-mbar,.shell-scrim{display:none}
+/* HP & tablet: sidebar disembunyikan jadi menu geser dengan tombol ☰ di bar atas; konten memakai seluruh lebar */
+@media (max-width:980px){
+  body.has-shell{display:block !important}
+  .shell-mbar{display:flex;position:sticky;top:0;z-index:45;align-items:center;gap:12px;padding:8px 12px;background:var(--sh-side);border-bottom:1px solid var(--sh-line);font:600 15px/1 Inter,ui-sans-serif,system-ui,sans-serif;color:var(--sh-text)}
+  .shell-mbar button{width:40px;height:40px;display:grid;place-items:center;background:transparent;border:1px solid var(--sh-line);color:var(--sh-text);font-size:20px;line-height:1;cursor:pointer}
+  .shell-mbar a{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;font-weight:700}
+  .shell-mbar a i{display:grid;place-items:center;width:26px;height:26px;background:var(--sh-accent);color:#fff;font-style:normal;font-size:13px;font-weight:800}
+  .shell-side{position:fixed;left:0;top:0;bottom:0;width:min(290px,86vw);height:100vh;transform:translateX(-104%);transition:transform .22s ease;z-index:90;box-shadow:12px 0 40px rgba(0,0,0,.6);overscroll-behavior:contain}
+  .shell-side.open{transform:none}
+  .shell-scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:85;opacity:0;pointer-events:none;transition:opacity .2s}
+  .shell-scrim.on{opacity:1;pointer-events:auto}
+  .shell-nav a{padding:12px 18px}
+}
+@media print{.shell-mbar,.shell-scrim{display:none !important}}

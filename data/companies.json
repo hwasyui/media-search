@@ -1,0 +1,151 @@
+[
+  {
+    "id": "telkom",
+    "name": "PT Telkom Indonesia (Persero) Tbk",
+    "aliases": [
+      "Telkom Indonesia",
+      "Telkom",
+      "TLKM"
+    ],
+    "type": "public",
+    "ticker": "TLKM",
+    "sector": "Telekomunikasi",
+    "stakeholders": [
+      {
+        "name": "Dian Siswarini",
+        "role": "Direktur Utama (contoh)"
+      },
+      {
+        "name": "Danantara",
+        "role": "Pemegang saham pengendali (contoh)"
+      },
+      {
+        "name": "Kementerian BUMN",
+        "role": "Regulator / pemegang saham (contoh)"
+      }
+    ]
+  },
+  {
+    "id": "pertamina",
+    "name": "PT Pertamina (Persero)",
+    "aliases": [
+      "Pertamina"
+    ],
+    "type": "private",
+    "sector": "Energi",
+    "stakeholders": [
+      {
+        "name": "Simon Aloysius Mantiri",
+        "role": "Direktur Utama (contoh)"
+      },
+      {
+        "name": "Kementerian ESDM",
+        "role": "Regulator (contoh)"
+      },
+      {
+        "name": "SKK Migas",
+        "role": "Regulator (contoh)"
+      }
+    ]
+  },
+  {
+    "id": "gotoyoy",
+    "name": "PT GoTo Gojek Tokopedia Tbk",
+    "aliases": [
+      "GoTo",
+      "Gojek",
+      "Tokopedia"
+    ],
+    "type": "public",
+    "ticker": "GOTO",
+    "sector": "Teknologi",
+    "stakeholders": [
+      {
+        "name": "Patrick Walujo",
+        "role": "CEO (contoh)"
+      },
+      {
+        "name": "Andre Soelistyo",
+        "role": "Co-founder (contoh)"
+      },
+      {
+        "name": "Grab",
+        "role": "Kompetitor / calon merger (contoh)"
+      }
+    ]
+  },
+  {
+    "id": "bca",
+    "name": "PT Bank Central Asia Tbk",
+    "aliases": [
+      "BCA",
+      "Bank BCA"
+    ],
+    "type": "public",
+    "ticker": "BBCA",
+    "sector": "Perbankan",
+    "stakeholders": [
+      {
+        "name": "Jahja Setiaatmadja",
+        "role": "Presiden Direktur (contoh)"
+      },
+      {
+        "name": "Otoritas Jasa Keuangan",
+        "role": "Regulator (contoh)"
+      },
+      {
+        "name": "Djarum Group",
+        "role": "Pemegang saham (contoh)"
+      }
+    ]
+  },
+  {
+    "id": "garuda",
+    "name": "PT Garuda Indonesia (Persero) Tbk",
+    "aliases": [
+      "Garuda Indonesia",
+      "Garuda"
+    ],
+    "type": "public",
+    "ticker": "GIAA",
+    "sector": "Penerbangan",
+    "stakeholders": [
+      {
+        "name": "Wamildan Tsani",
+        "role": "Direktur Utama (contoh)"
+      },
+      {
+        "name": "Danantara",
+        "role": "Pemegang saham (contoh)"
+      },
+      {
+        "name": "Kementerian Perhubungan",
+        "role": "Regulator (contoh)"
+      }
+    ]
+  },
+  {
+    "id": "freeport",
+    "name": "PT Freeport Indonesia",
+    "aliases": [
+      "Freeport",
+      "PTFI"
+    ],
+    "type": "private",
+    "sector": "Pertambangan",
+    "stakeholders": [
+      {
+        "name": "Tony Wenas",
+        "role": "Presiden Direktur (contoh)"
+      },
+      {
+        "name": "MIND ID",
+        "role": "Pemegang saham (contoh)"
+      },
+      {
+        "name": "Pemerintah Provinsi Papua Tengah",
+        "role": "Pemerintah daerah (contoh)"
+      }
+    ]
+  }
+]

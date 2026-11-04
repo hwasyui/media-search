@@ -1,0 +1,34 @@
+# Rahasia & konfigurasi lokal: JANGAN PERNAH di-commit (berisi key AI dan password database)
+.env
+.env.*
+!.env.example
+
+# Dependensi & hasil build
+node_modules/
+logs/
+*.log
+
+# Data lokal yang dibuat aplikasi (profil browser berisi cookie, laporan, arsip crawler)
+data/playwright_profile/
+data/reports/
+listener/data/
+listener/__pycache__/
+**/__pycache__/
+*.pyc
+*.db
+*.sqlite
+
+# Editor
+.vscode/
+.idea/
+
+# Dokumen internal (bukan bagian kode)
+*.pdf
+
+# Berkas sementara
+.pm2/
+*.tmp
+
+# Arsip cadangan & tangkapan layar uji
+*.zip
+dbg_*.png

@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Media Search · Portal Berita</title>
+<link rel="stylesheet" href="/shell.css">
+<script src="/shell.js" defer></script>
+<style>
+  :root{
+    --bg:#0b0d10; --side:#0e1115; --panel:#0f1318; --panel2:#141920; --line:#232932; --line2:#2e3641;
+    --text:#e9ecef; --muted:#8d95a0; --dim:#5f6772;
+    --green:#2fbf71; --green-bg:rgba(47,191,113,.12); --red:#ef5b5b; --red-bg:rgba(239,91,91,.12);
+    --amber:#fbbf24; --amber-bg:rgba(251,191,36,.12); --cyan:#4c8dff; --cyan-bg:rgba(76,141,255,.12); --violet:#a78bfa; --violet-bg:rgba(167,139,250,.12);
+    --radius:2px; --font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  html{color-scheme:dark}
+  body{background:var(--bg);color:var(--text);font:14px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+  .app{min-height:100vh}
+
+  /* sidebar */
+  .side{background:var(--side);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.02em;padding:4px 8px 16px}
+  .logo i{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#04120a;font-style:normal;font-size:15px}
+  .nav-h{font-size:10.5px;letter-spacing:.12em;color:var(--dim);font-weight:700;padding:14px 10px 6px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:var(--muted);font-weight:500}
+  .nav a:hover{background:var(--panel);color:var(--text)}
+  .nav a.on{background:var(--panel2);color:var(--text)}
+  .nav .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);margin-left:auto}
+  .nav .dot.risk{background:var(--red)} .nav .dot.ok{background:var(--green)}
+  .nav .tk{font-weight:700;font-size:12.5px;width:46px;color:var(--text)}
+  .nav .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .side .foot{margin-top:auto;font-size:11.5px;color:var(--dim);padding:10px}
+
+  /* top bar */
+  .main{min-width:0}
+  .top{position:sticky;top:0;z-index:20;background:rgba(8,9,11,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:12px 28px;display:flex;gap:12px;align-items:center}
+  .search{position:relative;flex:1;max-width:620px}
+  .search input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 14px 11px 40px;color:var(--text);font:inherit;outline:none}
+  .search input:focus{border-color:var(--green)}
+  .search svg{position:absolute;left:13px;top:12px;width:17px;height:17px;color:var(--dim)}
+  .sugg{position:absolute;top:48px;left:0;right:0;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.6);overflow:hidden;display:none}
+  .sugg.open{display:block}
+  .sugg h6{font-size:10.5px;letter-spacing:.1em;color:var(--dim);padding:10px 14px 4px}
+  .sugg a,.sugg button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 14px}
+  .sugg a:hover,.sugg button:hover{background:var(--panel2)}
+  .sugg .tk{font-weight:700;width:52px}
+  .sugg small{color:var(--muted);margin-left:auto}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;font-weight:600;border:1px solid var(--line2);background:var(--panel)}
+  .btn:hover{background:var(--panel2)} .btn:disabled{opacity:.55;cursor:wait}
+  .btn.pri{background:var(--green);color:#04120a;border-color:var(--green)} .btn.pri:hover{filter:brightness(1.08)}
+  .btn.wht{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+  .spin{width:14px;height:14px;border-radius:50% !important;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .page{padding:24px 28px 80px;max-width:1280px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .muted{color:var(--muted)} .dim{color:var(--dim)} .sm{font-size:12px}
+  .eyebrow{font:700 11px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;color:var(--cyan);display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .eyebrow:before{content:"";width:8px;height:8px;background:var(--cyan)}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:5px;overflow-x:auto;scrollbar-width:none}
+  .tabs button{padding:9px 16px;border-radius:10px;font-weight:600;color:var(--muted);white-space:nowrap;display:flex;gap:8px;align-items:center}
+  .tabs button:hover{color:var(--text)}
+  .tabs button.on{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line2)}
+  .tabs .n{font:600 11px ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line2);border-radius:999px;padding:1px 8px;color:var(--muted)}
+  .tabs .on .n{color:var(--green);border-color:rgba(34,197,94,.4)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+  .chip{padding:5px 12px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);font-size:12.5px;font-weight:600;background:var(--panel)}
+  .chip.on{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-bg)}
+  select{background:var(--panel);border:1px solid var(--line2);color:var(--text);border-radius:10px;padding:8px 10px;font:inherit}
+
+  /* cards & tags */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .tag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:7px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .t-green{background:var(--green-bg);color:var(--green)} .t-red{background:var(--red-bg);color:var(--red)}
+  .t-amber{background:var(--amber-bg);color:var(--amber)} .t-cyan{background:var(--cyan-bg);color:var(--cyan)}
+  .t-violet{background:var(--violet-bg);color:var(--violet)} .t-gray{background:var(--panel2);color:var(--muted)}
+  .co-pill{display:inline-flex;gap:6px;align-items:center;color:var(--cyan);font-weight:700;font-size:12.5px}
+
+  .lead{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px;margin-top:18px;align-items:stretch}
+  .lead-main{background:var(--panel);border:1px solid var(--line2);border-top:3px solid var(--cyan);padding:28px;display:flex;flex-direction:column;gap:14px}
+  .lead-main h2{font-size:26px;line-height:1.25;letter-spacing:-.02em}
+  .lead-main p{color:var(--muted);font-size:15px}
+  .lead-side{display:flex;flex-direction:column;gap:12px}
+  .thumb{position:relative;height:150px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;flex:none}
+  .thumb .logo-unused{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--dim);font-size:12px;font-weight:600}
+  .thumb .logo img{width:40px;height:40px;background:#fff;padding:4px;object-fit:contain}
+  .thumb .cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--panel2)}
+  .thumb.big{height:auto;flex:1;min-height:240px;margin:-28px -28px 4px}
+  .news{display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);padding:16px}
+  .news:hover{border-color:var(--cyan)}
+  .news h3{font-size:15px;line-height:1.4;font-weight:700}
+  .news p{color:var(--muted);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .news .meta{display:flex;justify-content:space-between;align-items:center;color:var(--dim);font-size:12px;gap:8px;margin-top:auto}
+  .news .meta a{color:var(--cyan);font-weight:600}
+  .status{font-size:12px;color:var(--dim);border-left:2px solid var(--line2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-top:18px}
+  .empty{border:1px dashed var(--line2);border-radius:var(--radius);padding:48px 20px;text-align:center;color:var(--muted);margin-top:18px}
+  .empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
+
+  /* company page */
+  .head{display:grid;grid-template-columns:1fr minmax(300px,440px);gap:20px;align-items:stretch}
+  .ident{display:flex;gap:16px;align-items:flex-start}
+  .avatar{width:64px;height:64px;display:grid;place-items:center;font-weight:800;font-size:19px;background:#18212e;color:#9db9e6;border:1px solid var(--line2);flex:none}
+  .ident h1{font-size:30px;letter-spacing:-.02em;line-height:1.1}
+  .price{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+  .price .big{font-size:32px;font-weight:800;letter-spacing:-.02em}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .spark{height:78px;margin-top:8px}
+  .two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;margin-top:16px}
+  .ana h2{font-size:22px;margin:8px 0 12px;letter-spacing:-.01em}
+  .ana p{color:#c5cbd3;font-size:14.5px;line-height:1.75;margin-bottom:8px}
+  .watch{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .kv{display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .kv:last-child{border:0} .kv span:first-child{color:var(--muted);border-bottom:1px dotted var(--dim)} .kv b{text-align:right}
+  .range{height:6px;border-radius:6px;background:linear-gradient(90deg,var(--red),var(--amber),var(--green));position:relative;margin:10px 0 4px}
+  .range i{position:absolute;top:-4px;width:3px;height:14px;background:#fff;border-radius:2px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .tile small{color:var(--muted);display:block;margin-bottom:4px} .tile b{font-size:20px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left} th{color:var(--muted);font-weight:600;font-size:12px}
+  .scroll{overflow-x:auto}
+  h4{font-size:15px;margin:22px 0 10px}
+  .hl{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .hl>div{background:var(--panel);padding:16px 18px}
+  .hl small{color:var(--muted);display:block;margin-bottom:6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .hl .v{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .hl .s{margin-top:6px;font-size:12px;color:var(--dim);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .bars{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:22px;border-bottom:1px solid var(--line2)}
+  .bars .b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative}
+  .bars .b i{width:100%;max-width:54px;display:block;background:var(--cyan);min-height:2px}
+  .bars .b i.neg{background:var(--red)}
+  .bars .b em{font:600 11px ui-monospace,Menlo,monospace;color:var(--muted);font-style:normal;margin-bottom:4px;white-space:nowrap}
+  .bl{display:flex;gap:10px;margin-top:6px} .bl span{flex:1;text-align:center;font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .health{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:12px}
+  .hc{background:var(--panel);border-left:3px solid var(--line2)}
+  .hc.st-baik{border-left-color:var(--green)} .hc.st-waspada{border-left-color:var(--amber)} .hc.st-buruk{border-left-color:var(--red)}
+  .hc summary{list-style:none;cursor:pointer;padding:14px 16px;display:block} .hc summary::-webkit-details-marker{display:none}
+  .hc .hh{margin-top:8px;color:#c5cbd3;font-size:13.5px;line-height:1.55}
+  .hc .more{margin-top:8px;font-size:12px;color:var(--cyan)} .hc[open] .more{display:none}
+  .hc .calc{padding:0 16px 14px;border-top:1px dashed var(--line2);margin-top:2px}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
+  .charts .ct{font-weight:700;margin-bottom:6px}
+  details.tbl{margin-bottom:10px;padding:0} details.tbl>summary{cursor:pointer;padding:13px 16px;font-weight:600;list-style:none}
+  details.tbl>summary::before{content:"▸ ";color:var(--cyan)} details.tbl[open]>summary::before{content:"▾ "}
+  details.tbl>.scroll{border-top:1px solid var(--line)} details.tbl>.kv{padding:10px 16px}
+  .ai{border-top:3px solid var(--violet)}
+  .ai-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+  .ai-h{font-weight:700;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+  .ai-pt{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
+  @media (max-width:700px){.ai-cols{grid-template-columns:1fr}}
+  .side-row{display:flex;gap:12px;padding:12px;background:var(--panel);border:1px solid var(--line);align-items:flex-start}
+  .side-row:hover{border-color:var(--cyan)}
+  .side-row .sth{width:96px;height:72px;object-fit:cover;flex:none;background:var(--panel2);border:1px solid var(--line)}
+  .side-row .sb{min-width:0;display:flex;flex-direction:column;gap:5px;flex:1}
+  .side-row h4{margin:0;font-size:13.5px;line-height:1.4;font-weight:700;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .side-row .m{font-size:11.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .lead-side{justify-content:space-between}
+  .modal-ov[hidden]{display:none}
+  .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal-box{background:var(--panel);border:1px solid var(--line2);padding:22px;width:100%;max-width:560px;max-height:92vh;overflow:auto}
+  .fl{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .fl input,.fl textarea{background:var(--bg);border:1px solid var(--line2);color:var(--text);padding:9px 11px;font:inherit;font-weight:400}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .rk-hero{display:grid;grid-template-columns:minmax(300px,380px) 1fr auto;gap:16px;align-items:stretch;margin-top:22px}
+  .rk-rating{border:1px solid var(--line2);border-left:5px solid var(--c);background:var(--panel);padding:16px 20px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+  .rk-rating .rv{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .meter{position:relative;display:flex;height:10px;background:var(--line);margin-top:2px} .meter span{display:block;height:100%}
+  .meter i{position:absolute;top:-5px;width:4px;height:20px;background:#fff;box-shadow:0 0 0 2px var(--bg)}
+  .rk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .rk-kpis>div{background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;justify-content:center}
+  .rk-kpis small{color:var(--muted);font-size:12px;margin-bottom:4px} .rk-kpis b{font-size:26px;font-variant-numeric:tabular-nums}
+  .rk-actions{display:flex;flex-direction:column;gap:8px;justify-content:center}
+  .kf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .kf{background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+  .ck-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}
+  .ck-grid .card{margin:0 !important}
+  @media (max-width:1100px){.rk-hero{grid-template-columns:1fr}.rk-actions{flex-direction:row}}
+  .risk-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:22px;flex-wrap:wrap}
+  .rating{border:1px solid var(--line2);border-left-width:5px;padding:14px 20px;background:var(--panel);min-width:260px}
+  .rating .rv{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+  .caveats{margin-top:14px;border:1px solid #4a3d1a;background:rgba(251,191,36,.07);padding:10px 14px;color:#e8cf86;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+  .catbars{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+  .cb{background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;gap:7px;text-align:left;border:0;cursor:pointer;color:inherit;font:inherit}
+  .cb:hover:not(:disabled){background:var(--panel2)} .cb.zero{opacity:.55;cursor:default}
+  details.flash{outline:2px solid var(--cyan);outline-offset:2px;transition:outline-color .6s}
+  .track{height:7px;background:#1a2028} .track i{display:block;height:100%}
+  .rflist{border-top:1px solid var(--line)} .rf{display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-bottom:1px solid var(--line)} .rf:last-child{border:0}
+  .ck{display:flex;gap:9px;align-items:flex-start;padding:7px 0;color:var(--text);font-size:13.5px;cursor:pointer}
+  @media print{
+    .shell-side,.top,.tabs,.btn,.toast,.modal-ov{display:none !important}
+    html,body,body.has-shell{display:block !important;background:#fff !important;color:#111 !important}
+    :root{--bg:#fff;--panel:#fff;--panel2:#f3f4f6;--line:#d9dde3;--line2:#c4c9d1;--text:#111;--muted:#444;--dim:#666;--cyan:#1d4ed8}
+    .page{padding:0 !important;max-width:none} details.tbl>summary::before{content:""}
+    .card,.rating,.caveats,.catbars,.cb{break-inside:avoid;background:#fff !important}
+    a{color:#1d4ed8 !important}
+  }
+  .nw-box{max-width:820px}
+  .nw-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px;position:sticky;top:-22px;background:var(--panel);padding:2px 0 10px;z-index:2;border-bottom:1px solid var(--line)}
+  .nw-s{border-top:1px solid var(--line);padding:14px 0 4px} .nw-s h5{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}
+  details.nw-s>summary{cursor:pointer;font-weight:600;color:var(--muted);padding-bottom:10px}
+  .nw-r{display:grid;grid-template-columns:190px 1fr;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13.5px} .nw-r>span{color:var(--muted)}
+  .nw-r i{font-style:normal;display:inline-grid;place-items:center;width:14px;height:14px;border:1px solid var(--dim);color:var(--dim);font-size:10px;cursor:help;margin-left:4px}
+  .nw-q{padding:8px 12px;background:var(--bg);border:1px solid var(--line);margin-bottom:8px}
+  .nw-lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .nw-snip{padding:10px 12px;background:var(--bg);border-left:3px solid var(--line2);color:#c5cbd3;line-height:1.7;white-space:pre-wrap}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all}
+  @media (max-width:700px){.nw-r{grid-template-columns:1fr;gap:2px}}
+  .fbar{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+  .frow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .fsearch{flex:1 1 260px;min-width:200px;background:var(--panel);border:1px solid var(--line2);color:var(--text);padding:9px 12px;font:inherit}
+  .fx{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--muted);font-weight:600} .fx select{min-width:150px;font-weight:400}
+  .fx.chk{flex-direction:row;align-items:center;gap:6px;padding-bottom:9px;cursor:pointer}
+  .fadv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;padding:14px;background:var(--panel);border:1px solid var(--line)}
+  .fadv[hidden]{display:none} .fadv select{width:100%}
+  .badge{display:inline-block;background:var(--cyan);color:#fff;font-size:11px;font-weight:700;padding:0 6px;margin-left:4px}
+  .active{display:flex;gap:6px;flex-wrap:wrap}
+  .achip{display:inline-flex;gap:8px;align-items:center;padding:4px 10px;background:var(--cyan-bg);color:var(--cyan);border:1px solid rgba(76,141,255,.35);font-size:12.5px;font-weight:600;cursor:pointer}
+  .achip:hover{background:rgba(76,141,255,.22)} .achip b{font-size:11px}
+  @media (max-width:700px){
+    .top{position:static;flex-wrap:wrap;gap:8px;padding:10px 12px}
+    .search{order:-1;flex:1 1 100%;max-width:none}
+    .top .btn{flex:1 1 0;justify-content:center;padding:9px 8px;font-size:13px;white-space:nowrap}
+    .page{padding:14px 12px 90px}
+    .head h1,.ident h1{font-size:24px} .ident{gap:12px} .avatar{width:52px;height:52px;font-size:16px}
+    .tabs button{padding:9px 12px}
+    .lead-main{padding:18px} .thumb.big{margin:-18px -18px 4px;min-height:180px}
+    .rk-rating .rv{font-size:28px}
+    .nw-box{padding:16px}
+    .grid{grid-template-columns:1fr}
+  }
+  @media (max-width:420px){ .top .btn span.lbl{display:none} }
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--panel2);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6);z-index:50;max-width:380px}
+
+  @media (max-width:980px){
+    .app{grid-template-columns:1fr} .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px}
+    .side .nav-h,.side .foot{display:none} .nav{display:flex;flex-wrap:wrap;gap:4px}
+    .lead,.head,.two{grid-template-columns:1fr} .top,.page{padding-left:16px;padding-right:16px}
+    .lead-main h2{font-size:21px}
+  }
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%234c8dff%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial%27%3EM%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+
+  <div class="main">
+    <header class="top">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" autocomplete="off" placeholder="Cari perusahaan, ticker (BBCA, GOTO), atau kata kunci berita…">
+        <div class="sugg" id="sugg"></div>
+      </div>
+      <button class="btn" id="addCo" title="Tambah perusahaan klien (debitur)">＋ Perusahaan</button>
+      <button class="btn" id="refreshAll" title="Ambil berita terbaru untuk semua perusahaan">⟳ Perbarui semua</button>
+    </header>
+    <div class="page" id="view"></div>
+  </div>
+</div>
+<div class="modal-ov" id="acModal" hidden>
+  <form class="modal-box" id="acForm" autocomplete="off">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Tambah perusahaan klien</h3><button type="button" class="btn" id="acClose" style="padding:3px 10px">✕</button></div>
+    <p class="muted sm" style="margin:6px 0 14px">Isi dari data debitur di FAP. Nama pengurus dan pemegang saham dari akta ikut dipakai untuk mencari berita (deed discovery).</p>
+    <label class="fl">Nama perusahaan *<input id="acName" required placeholder="PT Contoh Karya Abadi"></label>
+    <div class="row2"><label class="fl">Sektor<input id="acSector" placeholder="Pertambangan / Konstruksi / ..."></label>
+      <label class="fl">Kode saham (bila Tbk)<input id="acTicker" placeholder="kosongkan bila tertutup" maxlength="6"></label></div>
+    <label class="fl">Nama lain / merek (pisahkan koma)<input id="acAlias" placeholder="Contoh Karya, CKA"></label>
+    <label class="fl">Pengurus &amp; pemegang saham (satu per baris: Nama - peran)<textarea id="acStk" rows="5" placeholder="Budi Santoso - Direktur Utama&#10;Siti Aminah - Komisaris&#10;PT Induk Makmur - Pemegang saham 60%"></textarea></label>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="acCancel">Batal</button><button class="btn wht" id="acSubmit">Simpan</button></div>
+  </form>
+</div>
+<div class="modal-ov" id="nwModal" hidden>
+  <div class="modal-box nw-box">
+    <div class="nw-head"><h3 id="nwTitle" style="margin:0;font-size:17px;line-height:1.4"></h3><button type="button" class="btn" id="nwClose" style="padding:3px 10px;flex:none">✕</button></div>
+    <div id="nwBody"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px;gap:8px"><button type="button" class="btn" id="nwAsk" title="Minta asisten AI menjelaskan berita ini">✦ Tanya AI</button><button type="button" class="btn" id="nwCopy">Salin tautan</button><a class="btn wht" id="nwOpen" target="_blank" rel="noopener">Buka artikel ↗</a></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : '#');
+const nf = (n, d = 0) => (n == null ? '–' : Number(n).toLocaleString('id-ID', { maximumFractionDigits: d }));
+const api = async (url, opt) => {
+  const r = await fetch(url, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+};
+const toast = (msg, ms = 4500) => { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), ms); };
+
+function ago(iso) {
+  const d = new Date(iso), s = (Date.now() - d.getTime()) / 1000;
+  if (isNaN(s)) return '';
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} menit lalu`;
+  if (s < 86400) return `${Math.round(s / 3600)} jam lalu`;
+  if (s < 86400 * 7) return `${Math.round(s / 86400)} hari lalu`;
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+const fullDate = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }); };
+const money = (n, cur) => {
+  if (n == null) return '–';
+  const a = Math.abs(n), sg = n < 0 ? '-' : '';
+  const u = a >= 1e12 ? [a / 1e12, ' T'] : a >= 1e9 ? [a / 1e9, ' M'] : a >= 1e6 ? [a / 1e6, ' jt'] : [a, ''];
+  return `${sg}${nf(u[0], 2)}${u[1]} ${cur || ''}`.trim();
+};
+const pctHtml = (v, d = 2) => (v == null ? '<span class="muted">–</span>' : `<span class="${v < 0 ? 'down' : 'up'}">${v > 0 ? '+' : ''}${nf(v, d)}%</span>`);
+
+/* ---------- state ---------- */
+const S = { portfolio: [], feed: { filter: 'all', sort: 'mix', company: '', q: '', limit: 24 } };
+const FILTERS = [['all', 'Semua Berita'], ['official', 'Valid Resmi'], ['rumor', 'Isu & Spekulasi'], ['positive', 'Katalis Positif'], ['risk', 'Risiko / Sanksi'], ['public', 'Persepsi Publik']];
+
+/* ---------- komponen ---------- */
+const PLAT_LABEL = { berita: 'Berita (media massa)', blog: 'Blog & forum', sosmed: 'Media sosial', video: 'Video (YouTube)', resmi: 'Sumber resmi' };
+function platformOptions(counts, cur) {
+  const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
+  return '<option value="">Semua platform (' + total + ')</option>' + Object.entries(PLAT_LABEL).map(([k, l]) => '<option value="' + k + '"' + (cur === k ? ' selected' : '') + '>' + l + ' (' + ((counts || {})[k] || 0) + ')</option>').join('');
+}
+function tagsFor(r) {
+  const t = [];
+  if (r.credibility_tier === 'official') t.push('<span class="tag t-green" title="Sumber resmi: domain instansi pemerintah, bursa, atau lembaga resmi (penilaian otomatis berdasarkan domain)">✓ Valid Resmi</span>');
+  else if (r.credibility_tier === 'social_forum') t.push('<span class="tag t-violet" title="Berasal dari media sosial/forum: cerminan persepsi publik, bukan keterbukaan informasi resmi">Medsos / Forum</span>');
+  if (r.category === 'rumor') t.push('<span class="tag t-amber" title="Dinilai AI sebagai rumor/belum terverifikasi secara resmi. Jangan dijadikan dasar sebelum dicek ke sumber primer.">⚠ Rumor</span>');
+  if (r.impact === 'baik') t.push('<span class="tag t-green" title="' + esc(r.impact_reason || 'Terdeteksi kata bernada positif (kamus aturan, bukan AI)') + '">▲ Katalis Positif</span>');
+  if (r.impact === 'buruk') t.push('<span class="tag t-red" title="' + esc(r.impact_reason || 'Terdeteksi kata bernada negatif (kamus aturan, bukan AI)') + '">▼ Risiko</span>');
+  if (r.source_key === 'youtube') t.push('<span class="tag t-cyan">▶ Video</span>');
+  if (r.content_kind === 'konsumen') t.push('<span class="tag t-gray" title="Konten tutorial/promo konsumen: tidak relevan untuk analisis kredit, hanya tampil pada mode data mentah">tutorial/konsumen</span>');
+  if (r.related === 0) t.push('<span class="tag t-gray" title="Tidak menyebut perusahaan maupun pemangku kepentingannya; hanya tampil pada mode data mentah">tidak terkait</span>');
+  else if (r.related_via && r.related_via !== 'perusahaan') t.push('<span class="tag t-violet" title="Berita ini menyebut pemangku kepentingan perusahaan, bukan perusahaannya langsung">via ' + esc(r.related_via.replace('stakeholder: ', '')) + '</span>');
+  return t.join('');
+}
+function thumb(r, big) {
+  if (!r.image_url) return '';
+  return '<div class="thumb' + (big ? ' big' : '') + '"><img class="cover" src="' + esc(safeUrl(r.image_url)) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.thumb\').remove()"></div>';
+}
+// Nama sumber + favicon penerbit (kecil, sejajar teks), bukan kotak besar
+function srcTag(r) {
+  const dom = r.source_domain;
+  const ico = dom ? '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=32" alt="" width="14" height="14" referrerpolicy="no-referrer" style="margin-right:6px" onerror="this.remove()">' : '';
+  return '<span class="tag t-gray">' + ico + esc(r.source_name || dom || r.source_key || 'sumber') + '</span>';
+}
+// Berita lama menyimpan "(news.google.com)" sebagai sumber; tampilkan penerbit aslinya
+function statusText(r) {
+  return String(r.status_line || '').replace('news.google.com', r.source_domain || r.source_name || 'media');
+}
+// Item ringkas untuk kolom kanan (judul + meta), tinggi kecil supaya kolom seimbang dengan kartu lead
+function sideRow(r) {
+  const img = r.image_url ? '<img class="sth" src="' + esc(safeUrl(r.image_url)) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '';
+  return '<article class="side-row" data-nid="' + r.id + '" ' + lazyAttr(r) + '>' + img + '<div class="sb"><a class="co-pill" style="font-size:11.5px" href="#/c/' + esc(r.company_id) + '">' + esc(r.company_ticker || r.company_name) + '</a>'
+    + '<h4><a href="' + esc(safeUrl(r.url)) + '" data-nid="' + r.id + '" target="_blank" rel="noopener">' + esc(r.title) + '</a></h4>'
+    + '<div class="m"><span>' + esc(r.source_name || r.source_domain || '') + '</span><span>' + esc(ago(r.published_at)) + '</span>' + tagsFor(r).replace(/<span class="tag t-violet">[^<]*<\/span>/, '') + '</div></div></article>';
+}
+// Berita tanpa gambar yang masih mungkin punya (bukan tautan Google News, belum pernah dicek): gambarnya diminta saat tampil.
+const lazyAttr = (r) => (r.image_url || r.image_checked || /^https:\/\/news\.google\.com\//.test(r.url || '') ? '' : 'data-lazyimg="' + r.id + '"');
+function newsCard(r, { showCompany = true } = {}) {
+  return `<article class="news" data-nid="${r.id}" ${lazyAttr(r)}>${thumb(r)}
+    <div class="row" style="justify-content:space-between">
+      ${srcTag(r)}
+      <span class="row" style="gap:5px">${tagsFor(r)}</span>
+    </div>
+    ${showCompany ? `<a class="co-pill" href="#/c/${esc(r.company_id)}">🏢 ${esc(r.company_name)}</a>` : ''}
+    <h3><a href="${esc(safeUrl(r.url))}" data-nid="${r.id}" target="_blank" rel="noopener" title="Klik untuk detail">${esc(r.title)}</a></h3>
+    ${r.snippet ? `<p>${esc(r.snippet)}</p>` : ''}
+    ${r.status_line ? `<div class="status">${esc(statusText(r))}</div>` : ''}
+    <div class="meta"><span title="${esc(fullDate(r.published_at))}">${esc(fullDate(r.published_at))} · ${esc(ago(r.published_at))}</span><a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener">Sumber ↗</a></div>
+  </article>`;
+}
+function leadCard(r) {
+  return `<article class="lead-main" data-nid="${r.id}" ${lazyAttr(r)}>
+    ${thumb(r, true)}
+    <div class="row"><span class="tag t-cyan">✦ LEAD STORY</span>${srcTag(r)}${tagsFor(r)}</div>
+    <h2><a href="${esc(safeUrl(r.url))}" data-nid="${r.id}" target="_blank" rel="noopener" title="Klik untuk detail">${esc(r.title)}</a></h2>
+    ${r.snippet ? `<p>${esc(r.snippet.slice(0, 320))}${r.snippet.length > 320 ? '…' : ''}</p>` : ''}
+    ${r.impact_reason ? `<div class="status">${esc(r.impact_reason)}</div>` : ''}
+    ${r.reason ? `<div class="status">Analisis: ${esc(r.reason)}</div>` : ''}
+    <div class="row" style="margin-top:auto;justify-content:space-between">
+      <a class="co-pill" href="#/c/${esc(r.company_id)}">🏢 ${esc(r.company_name)}</a>
+      <span class="sm dim">${esc(fullDate(r.published_at))} · ${esc(ago(r.published_at))} · <a style="color:var(--cyan)" href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener">Sumber ↗</a></span>
+    </div>
+  </article>`;
+}
+function tabsHtml(counts, current, attr) {
+  return `<div class="tabs">${FILTERS.map(([k, label]) => `<button class="${k === current ? 'on' : ''}" ${attr}="${k}">${label}<span class="n">${counts?.[k] ?? 0}</span></button>`).join('')}</div>`;
+}
+function sparkline(series, up) {
+  if (!series || series.length < 2) return '<div class="muted sm" style="padding-top:24px">Grafik tidak tersedia</div>';
+  const w = 400, h = 78, v = series.map((x) => x[1]);
+  const min = Math.min(...v), max = Math.max(...v), rg = max - min || 1;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * w, h - 6 - ((y - min) / rg) * (h - 14)]);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const col = up ? '#22c55e' : '#f87171', last = pts.at(-1);
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line} L${w},${h} L0,${h} Z" fill="url(#g)"/><path d="${line}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="4" fill="${col}"/></svg>`;
+}
+
+/* ---------- sidebar ---------- */
+async function loadPortfolio() {
+  S.portfolio = await api('/api/portfolio');
+  window.shellRefresh?.();      // sidebar bersama (shell.js)
+}
+
+/* ---------- Beranda ---------- */
+async function viewHome() {
+  viewToken++;
+  const f = S.feed;
+  $('#view').innerHTML = `<div class="eyebrow">PORTAL BERITA · SEMUA PERUSAHAAN</div><div id="exploreMount"></div>`;
+  await renderHomeBody();
+}
+async function renderHomeBody() {
+  await renderExplorer({ mount: $('#exploreMount'), state: S.feed, lead: true, chips: true });
+}
+
+/* ---------- Halaman perusahaan ---------- */
+const CS = { id: null, tab: 'ringkasan', data: null, filter: 'all' };
+let viewToken = 0;      // hanya respons terbaru yang boleh menggambar halaman (cegah respons lambat menimpa halaman yang sudah berganti)
+async function viewCompany(id) {
+  const token = ++viewToken;
+  if (CS.id !== id) { CS.id = id; CS.tab = 'ringkasan'; CS.filter = 'all'; }
+  $('#view').innerHTML = '<div class="muted">Memuat…</div>';
+  let d;
+  try { d = await api(`/api/company/${encodeURIComponent(id)}/overview`); }
+  catch (e) { if (token !== viewToken) return; $('#view').innerHTML = `<div class="empty"><b>${esc(e.message)}</b><a class="btn" href="#/">Kembali ke Beranda</a></div>`; return; }
+  if (token !== viewToken) return;
+  CS.data = d;
+  paintCompany();
+}
+function paintCompany() {
+  const { company: c, financial: fin, financialError, counts, narrative } = CS.data;
+  const p = fin?.price, isPub = c.type === 'public';
+  const initials = (c.ticker || c.name.replace(/^PT\s+/i, '')).slice(0, 2).toUpperCase();
+  const up = (p?.dayChangePct ?? 0) >= 0;
+  const chg = p?.price && p.dayChangePct != null ? p.price * p.dayChangePct / (100 + p.dayChangePct) : null;
+  const tabs = [['ringkasan', 'Ringkasan'], ['risiko', 'Risiko FAP'], ['analisis', 'Analisis Sinyal'], ['keuangan', 'Keuangan'], ['berita', `Berita (${counts.all})`], ['profil', 'Profil']];
+  $('#view').innerHTML = `
+    <div class="head">
+      <div>
+        <div class="muted sm" style="margin-bottom:14px"><a href="#/">Beranda</a> / ${esc(c.ticker || c.name)}</div>
+        <div class="ident"><div class="avatar">${esc(initials)}</div>
+          <div><div class="row"><h1>${esc(c.ticker || c.name.replace(/^PT\s+/i, ''))}</h1>
+              <span class="tag ${isPub ? 't-green' : 't-gray'}">${isPub ? 'Tbk / Emiten' : 'Tertutup / Swasta'}</span></div>
+            <div class="muted" style="margin-top:4px">${esc(c.name)} · ${esc(c.sector || '-')}</div></div></div>
+        <div class="row" style="margin-top:22px">
+          <button class="btn wht" id="btnRefresh">⟳ Perbarui berita</button>
+          <span class="muted sm" id="lastCrawl">${c.lastCrawlAt ? 'Terakhir diperbarui ' + esc(ago(c.lastCrawlAt)) : 'Belum pernah diperbarui'}</span>
+        </div>
+      </div>
+      <div class="price">${p ? `
+        <div class="muted">Harga terakhir${p.asOf ? ` <span class="dim sm">· ${esc(ago(p.asOf))}</span>` : ''}${fin.stale?.price ? ' <span class="tag t-amber">snapshot tersimpan · sumber sedang membatasi akses</span>' : ''}</div>
+        <div class="row" style="align-items:baseline;gap:12px"><span class="big">${nf(p.price)}</span>
+          <span class="${up ? 'up' : 'down'}" style="font-weight:700">${up ? '▲' : '▼'} ${chg != null ? nf(chg) : ''} (${p.dayChangePct > 0 ? '+' : ''}${nf(p.dayChangePct, 2)}%)</span></div>
+        <div class="spark">${sparkline(p.series, (p.change3mPct ?? 0) >= 0)}</div>
+        <div class="row" style="justify-content:space-between;margin-top:8px"><span class="sm dim">Data keuangan per ${esc(new Date(fin.fetchedAt).toLocaleString('id-ID'))}${fin.stale?.price ? ' (snapshot lama)' : ''}</span><button class="btn" id="btnFin" style="padding:3px 10px" title="Ambil harga, valuasi, dan laporan keuangan terbaru dari sumber lalu simpan ke DB">⟳ Perbarui</button></div>`
+        : `<div class="muted">${isPub ? esc(financialError || 'Data harga tidak tersedia') : 'Perusahaan tertutup: tidak ada harga saham publik. Pantau lewat berita.'}</div>`}
+      </div>
+    </div>
+    <div class="tabs" style="margin-top:26px">${tabs.map(([k, l]) => `<button class="${CS.tab === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</div>
+    <div id="cbody"></div>`;
+  document.querySelectorAll('[data-t]').forEach((b) => (b.onclick = () => { CS.tab = b.dataset.t; paintCompany(); }));
+  $('#btnRefresh').onclick = () => refreshCompany(c.id, $('#btnRefresh'));
+  if ($('#btnFin')) $('#btnFin').onclick = () => refreshFinancial(c.id, $('#btnFin'));
+  ({ risiko: tabRisiko, ringkasan: tabRingkasan, analisis: tabAnalisis, keuangan: tabKeuangan, berita: tabBerita, profil: tabProfil })[CS.tab]();
+}
+
+async function tabRingkasan() {
+  const { narrative: n, financial: fin, company: c } = CS.data;
+  const p = fin?.price, v = fin?.valuation;
+  const pos = p?.low52w && p?.high52w ? Math.max(0, Math.min(100, ((p.price - p.low52w) / (p.high52w - p.low52w)) * 100)) : null;
+  $('#cbody').innerHTML = `<div class="two">
+    <div class="card ana"><div class="eyebrow">ANALISIS BERBASIS ATURAN</div>
+      <h2>${esc(n.headline)}</h2>
+      ${n.body.map((s) => `<p>${esc(s)}</p>`).join('') || '<p class="muted">Belum ada data.</p>'}
+      ${n.watch.length ? `<div class="watch">${n.watch.map((w) => `<span class="tag ${w.level === 'baik' ? 't-green' : 't-red'}" style="white-space:normal;padding:7px 11px">${w.level === 'baik' ? '▲' : '▼'} ${esc(w.text)}</span>`).join('')}</div>` : ''}
+      <div class="sm dim" style="margin-top:14px">Narasi disusun otomatis dari angka yang tampil di halaman ini (tanpa AI).</div>
+    </div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">Sesi terakhir</div>
+      ${p ? `<div class="kv"><span>Harga</span><b>${pctHtml(p.dayChangePct)}</b></div>
+        <div class="kv"><span>5 hari</span><b>${pctHtml(p.change5dPct)}</b></div>
+        <div class="kv"><span>1 bulan</span><b>${pctHtml(p.change1mPct)}</b></div>
+        <div class="kv"><span>3 bulan</span><b>${pctHtml(p.change3mPct)}</b></div>
+        <div class="kv"><span>Volume</span><b>${nf(p.volume)}</b></div>
+        <div class="kv" style="display:block"><div class="row" style="justify-content:space-between"><span class="muted">Rentang 52 minggu</span><b>${nf(p.low52w)} – ${nf(p.high52w)}</b></div>
+          ${pos != null ? `<div class="range"><i style="left:calc(${pos}% - 1px)"></i></div>` : ''}</div>`
+        : '<div class="muted" style="padding:10px 0">Tidak ada data pasar.</div>'}
+      ${v ? `<div class="kv"><span>Market cap</span><b>${money(v.marketCap, p?.currency)}</b></div><div class="kv"><span>PER / PBV</span><b>${nf(v.per, 1)}x / ${nf(v.pbv, 2)}x</b></div><div class="kv"><span>Dividend yield</span><b>${v.dividendYieldPct == null ? '–' : nf(v.dividendYieldPct, 1) + '%'}</b></div>` : ''}
+    </div></div>
+    <div id="aiBox" style="grid-column:1/-1"></div><h4>Berita terpenting</h4><div class="grid" id="topNews" style="margin-top:0"></div>`;
+  loadAnalysis();
+  const { items } = await api(`/api/news?company=${encodeURIComponent(c.id)}&limit=6&sort=mix`);
+  $('#topNews').innerHTML = items.length ? items.map((r) => newsCard(r, { showCompany: false })).join('')
+    : '<div class="empty" style="grid-column:1/-1"><b>Belum ada berita tersimpan</b>Tekan "Perbarui berita" untuk mengambilnya.</div>';
+}
+
+async function tabAnalisis() {
+  const { counts, stats, company: c } = CS.data;
+  $('#cbody').innerHTML = `<h4>Distribusi sinyal (30 hari)</h4>
+    <div class="tiles">
+      <div class="tile"><small>Total sinyal</small><b>${counts.all}</b></div>
+      <div class="tile"><small>Valid resmi</small><b class="up">${counts.official}</b></div>
+      <div class="tile"><small>Isu & rumor</small><b style="color:var(--amber)">${counts.rumor}</b></div>
+      <div class="tile"><small>Katalis positif</small><b class="up">${counts.positive}</b></div>
+      <div class="tile"><small>Risiko / sanksi</small><b class="down">${counts.risk}</b></div>
+    </div>
+    <div class="two"><div><h4 style="margin-top:6px">▼ Sinyal risiko terbaru</h4><div id="riskList" class="lead-side"></div></div>
+    <div><h4 style="margin-top:6px">▲ Katalis positif terbaru</h4><div id="posList" class="lead-side"></div></div></div>`;
+  const [r, g] = await Promise.all([
+    api(`/api/news?company=${encodeURIComponent(c.id)}&filter=risk&sort=latest&limit=5`),
+    api(`/api/news?company=${encodeURIComponent(c.id)}&filter=positive&sort=latest&limit=5`),
+  ]);
+  const none = '<div class="muted card">Tidak ada.</div>';
+  $('#riskList').innerHTML = r.items.map((x) => newsCard(x, { showCompany: false })).join('') || none;
+  $('#posList').innerHTML = g.items.map((x) => newsCard(x, { showCompany: false })).join('') || none;
+}
+
+async function tabBerita() {
+  const c = CS.data.company;
+  CS.feed = CS.feed && CS.feedFor === c.id ? CS.feed : newFeedState();
+  CS.feedFor = c.id;
+  $('#cbody').innerHTML = '<div id="exploreMount" style="margin-top:18px"></div>';
+  await renderExplorer({ mount: $('#exploreMount'), state: CS.feed, company: c.id });
+}
+
+function tabProfil() {
+  const c = CS.data.company;
+  $('#cbody').innerHTML = `<div class="two"><div class="card">
+      <div class="kv"><span>Nama</span><b>${esc(c.name)}</b></div><div class="kv"><span>Status</span><b>${c.type === 'public' ? 'Perusahaan terbuka (Tbk)' : 'Tertutup / swasta'}</b></div>
+      ${c.ticker ? `<div class="kv"><span>Ticker</span><b>${esc(c.ticker)}</b></div>` : ''}<div class="kv"><span>Sektor</span><b>${esc(c.sector || '-')}</b></div>
+      <div class="kv"><span>Alias pencarian</span><b>${(c.aliases || []).map((a) => `<span class="tag t-gray">${esc(a)}</span>`).join(' ') || '-'}</b></div>
+      <div class="kv"><span>Terakhir diperbarui</span><b>${c.lastCrawlAt ? esc(new Date(c.lastCrawlAt).toLocaleString('id-ID')) : '-'}</b></div></div>
+    <div class="card"><div style="font-weight:700;margin-bottom:8px">Pemangku kepentingan</div>
+      ${(c.stakeholders || []).map((s) => `<div class="kv"><span style="border:0;color:var(--text)">${esc(s.name)}</span><b class="muted sm">${esc(s.role || '')}</b></div>`).join('') || '<div class="muted">Belum ada.</div>'}</div></div>`;
+}
+
+/* ---------- refresh ---------- */
+async function refreshFinancial(id, btn) {
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const r = await api('/api/company/' + encodeURIComponent(id) + '/financial/refresh', { method: 'POST' });
+    toast(r.saved ? 'Data keuangan diperbarui dan disimpan.' : 'Sebagian sumber gagal (' + Object.values(r.errors || {}).join('; ') + '); data lama dipertahankan.', r.saved ? 4500 : 8000);
+    await viewCompany(id);
+  } catch (e) { toast('Gagal memperbarui data keuangan: ' + e.message, 8000); btn.disabled = false; btn.innerHTML = old; }
+}
+// Menunggu job Task Runner selesai (polling); onTick dipanggil tiap putaran dengan data job
+async function waitJob(jobId, onTick) {
+  for (;;) {
+    const j = await api('/api/jobs/' + jobId);
+    if (onTick) onTick(j);
+    if (!['running', 'waiting'].includes(j.status)) return j;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+const jobSummary = (j) => {
+  const c = j.reports && j.reports.length ? (j.reports[j.reports.length - 1].clean || {}) : {};
+  if (j.status === 'cancelled') return 'Dihentikan.';
+  if (j.status === 'error') return 'Gagal: ' + (j.error || 'kesalahan tidak diketahui');
+  return 'Selesai: ' + (c.beritaBaru ?? 0) + ' berita baru dari ' + (c.beritaDiproses ?? 0) + ' diproses.';
+};
+async function refreshCompany(id, btn) {
+  const old = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Memperbarui…'; }
+  try {
+    const job = await api(`/api/companies/${encodeURIComponent(id)}/refresh`, { method: 'POST' });
+    const j = await waitJob(job.id, (x) => { if (btn && x.progress?.stage) btn.innerHTML = '<span class="spin"></span> ' + x.progress.stage + (x.progress.work ? ' ' + x.progress.work : ''); });
+    toast(jobSummary(j), j.status === 'done' ? 4500 : 8000);
+    await loadPortfolio();
+    if (location.hash === '#/c/' + id) await viewCompany(id);
+    else if (!location.hash.startsWith('#/c/')) await route();
+  } catch (e) { toast('Gagal memperbarui: ' + e.message, 8000); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+}
+// Form tambah perusahaan klien (fungsinya dimuat belakangan dari portal-risk.js, jadi dirujuk saat dipakai)
+$('#addCo').onclick = () => openAddCompany();
+$('#acClose').onclick = $('#acCancel').onclick = () => closeAddCompany();
+$('#acModal').addEventListener('click', (e) => { if (e.target.id === 'acModal') closeAddCompany(); });
+$('#acForm').addEventListener('submit', (e) => submitAddCompany(e));
+$('#refreshAll').onclick = async () => {
+  const b = $('#refreshAll'); b.disabled = true;
+  try {
+    const job = await api('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'portfolio', options: {} }) });
+    const j = await waitJob(job.id, (x) => { const p = x.progress || {}; if (p.companyTotal) b.innerHTML = `<span class="spin"></span> ${p.companyIndex}/${p.companyTotal} ${esc((p.company || '').replace(/^PT\s+/i, '').slice(0, 14))}`; });
+    toast(jobSummary(j) + ' Detail ada di Task Runner.', 6000);
+  } catch (e) { toast('Gagal memperbarui: ' + e.message, 8000); }
+  b.disabled = false; b.innerHTML = '⟳ Perbarui semua';
+  await loadPortfolio(); await route();
+};
+
+/* ---------- pencarian ---------- */
+let sTimer;
+$('#q').addEventListener('input', (e) => {
+  clearTimeout(sTimer);
+  const v = e.target.value.trim();
+  if (v.length < 2) { $('#sugg').classList.remove('open'); return; }
+  sTimer = setTimeout(() => suggest(v), 250);
+});
+$('#q').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const v = e.target.value.trim();
+  $('#sugg').classList.remove('open');
+  S.feed.q = v; S.feed.company = ''; S.feed.filter = 'all';
+  if (location.hash !== '#/' && location.hash !== '') location.hash = '#/'; else viewHome();
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.search')) $('#sugg').classList.remove('open'); });
+async function suggest(v) {
+  const low = v.toLowerCase();
+  const local = S.portfolio.filter((c) => c.name.toLowerCase().includes(low) || (c.ticker || '').toLowerCase().includes(low) || (c.aliases || []).some((a) => a.toLowerCase().includes(low))).slice(0, 5);
+  const box = $('#sugg');
+  const render = (idx) => {
+    box.innerHTML = (local.length ? '<h6>DIPANTAU</h6>' + local.map((c) => `<a href="#/c/${esc(c.id)}"><span class="tk">${esc(c.ticker || '')}</span>${esc(c.name)}<small>${c.type === 'public' ? 'Tbk' : 'Swasta'}</small></a>`).join('') : '')
+      + (idx === null ? '<h6>BURSA EFEK INDONESIA</h6><div class="dim sm" style="padding:8px 14px">Mencari…</div>'
+        : idx.length ? '<h6>BURSA EFEK INDONESIA · TAMBAHKAN</h6>' + idx.map((x, i) => `<button data-add="${i}"><span class="tk">${esc(x.ticker)}</span>${esc(x.name)}<small>+ pantau</small></button>`).join('') : '')
+      + `<h6>BERITA</h6><button data-q="${esc(v)}">🔎 Cari berita "${esc(v)}"</button>`;
+    box.classList.add('open');
+    box.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { box.classList.remove('open'); $('#q').value = ''; }));
+    box.querySelector('[data-q]')?.addEventListener('click', () => { $('#q').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); });
+    box.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => addCompany(idx[Number(b.dataset.add)])));
+  };
+  render(null);
+  try {
+    const { results } = await api('/api/idx/search?q=' + encodeURIComponent(v));
+    const have = new Set(S.portfolio.map((c) => c.ticker));
+    render(results.filter((r) => !have.has(r.ticker)).slice(0, 6));
+  } catch { render([]); }
+}
+async function addCompany(x) {
+  try {
+    const { company } = await api('/api/companies', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: x.name, ticker: x.ticker, type: 'public', sector: x.sector }) });
+    $('#sugg').classList.remove('open'); $('#q').value = '';
+    await loadPortfolio();
+    toast(`${x.ticker} ditambahkan ke portofolio.`);
+    location.hash = '#/c/' + company.id;
+  } catch (e) { toast('Gagal menambah: ' + e.message, 6000); }
+}
+
+/* ---------- router ---------- */
+async function route() {
+  const m = /^#\/c\/([^/]+)/.exec(location.hash);
+  document.querySelectorAll('.nav a').forEach((a) => a.classList.remove('on'));
+  try {
+    if (m) { await viewCompany(decodeURIComponent(m[1])); } else { await viewHome(); }
+  } catch (e) { $('#view').innerHTML = `<div class="empty"><b>Terjadi kesalahan</b>${esc(e.message)}</div>`; }
+  await loadPortfolio().catch(() => {});
+}
+addEventListener('hashchange', route);
+(async () => { await loadPortfolio().catch((e) => toast('Gagal memuat portofolio: ' + e.message, 8000)); await route(); })();
+</script>
+<script src="/portal-fin.js"></script>
+<script src="/portal-explorer.js"></script>
+<script src="/portal-risk.js"></script>
+<script src="/portal-news.js"></script>
+<script src="/assistant.js"></script>
+</body>
+</html>

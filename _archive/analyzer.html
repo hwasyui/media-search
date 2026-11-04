@@ -1,0 +1,1215 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Media Search</title>
+<style>
+  :root {
+    --bg:#f0f2f5; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e3e6ea;
+    --acc:#2557d6; --acc2:#1a44b8;
+    --pos:#15803d; --neg:#b91c1c; --net:#4b5563;
+    --risk:#dc2626;
+    --radius:12px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f1117;--card:#1a1f28;--ink:#e8eaed;--mute:#9aa3ad;--line:#2a313a;
+    --acc:#6b93ff;--acc2:#4f78f0;--pos:#4ade80;--neg:#f87171;--net:#9ca3af;--risk:#f87171;}
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font:14px/1.6 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+  main{width:96%;max-width:1760px;margin:0 auto;padding:24px 20px 80px}
+
+  .hdr{margin-bottom:20px}
+  .pipeline-detail{display:flex;flex-wrap:wrap;gap:4px 0;align-items:baseline;margin-top:6px;font-size:11.5px;color:var(--mute);line-height:1.6}
+  .pipeline-detail b{color:var(--ink);font-weight:600}
+  .pd-sep{margin:0 6px;opacity:.4}
+  .pd-item{white-space:nowrap}
+  .hdr h1{font-size:24px;font-weight:700;letter-spacing:-.3px}
+  .hdr p{color:var(--mute);font-size:13px;margin-top:2px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+  .card-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin-bottom:12px}
+
+  select{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:220px}
+  select:focus{outline:2px solid var(--acc);outline-offset:1px}
+
+  /* Tag-box keyword */
+  .kw-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+  .tag-box{display:flex;flex-wrap:wrap;gap:6px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);min-height:42px;cursor:text;align-items:center;flex:1;min-width:260px;transition:outline .1s}
+  .tag-box:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+  .kw-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:99px;background:color-mix(in srgb,var(--acc) 12%,transparent);border:1px solid color-mix(in srgb,var(--acc) 30%,transparent);color:var(--acc);font-size:12.5px;font-weight:600;white-space:nowrap}
+  .kw-tag.stk{background:color-mix(in srgb,#6d28d9 10%,transparent);border-color:color-mix(in srgb,#6d28d9 28%,transparent);color:#6d28d9}
+  .kw-tag .rm{cursor:pointer;opacity:.5;font-size:15px;line-height:1;margin-left:2px;padding:0 1px}
+  .kw-tag .rm:hover{opacity:1}
+  .kw-input{border:0;outline:0;background:transparent;font:inherit;font-size:13px;min-width:160px;flex:1;padding:2px 4px;color:var(--ink)}
+  .kw-hint{font-size:12px;color:var(--mute);margin-top:6px}
+
+  /* Fetch button */
+  .fetch-wrap{display:flex;gap:14px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .btn-fetch{font:inherit;padding:12px 32px;border:0;border-radius:9px;background:var(--acc);color:#fff;cursor:pointer;font-weight:700;font-size:15px;transition:background .15s}
+  .btn-fetch:hover{background:var(--acc2)}
+  .btn-fetch:disabled{opacity:.5;cursor:wait}
+  .qinfo{color:var(--mute);font-size:13px}
+
+  /* Steps */
+  .steps{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .step{flex:1;min-width:180px;padding:9px 14px;border:1px solid var(--line);border-radius:9px;color:var(--mute);font-size:13px;background:var(--card)}
+  .step b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;color:var(--ink)}
+  .step.run{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 6%,transparent)}
+  .step.ok{border-color:color-mix(in srgb,var(--pos) 40%,transparent);background:color-mix(in srgb,var(--pos) 6%,transparent);color:var(--ink)}
+  .err{color:#d92d20;font-size:13px;margin-bottom:10px;white-space:pre-wrap}
+
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px}
+  .stat-n{font-size:28px;font-weight:700;line-height:1.1}
+  .stat-l{font-size:11px;color:var(--mute);margin-top:4px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  .s-rel .stat-n{color:var(--pos)}
+  .s-risk .stat-n{color:var(--risk)}
+  .s-unrel .stat-n{color:var(--mute)}
+  .s-sources .stat-n{color:var(--acc)}
+
+  /* Filter bar */
+  .filter-bar{display:flex;flex-direction:column;gap:7px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--bg) 60%,var(--card));margin-bottom:14px}
+  .flt-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+  .flt{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .flt label{font-size:10px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .flt select{font:inherit;font-size:12.5px;padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;min-width:120px}
+  .flt select:focus{outline:2px solid var(--acc);outline-offset:1px}
+  .flt-grow{flex:1;min-width:160px}
+  .flt-grow input{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+  .flt-grow input:focus{outline:2px solid var(--acc);outline-offset:1px}
+  .filter-count{font-size:12px;color:var(--mute);align-self:flex-end;padding-bottom:6px;white-space:nowrap}
+  .filter-search-main{font:inherit;font-size:13.5px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+  .filter-search-main:focus{outline:2px solid var(--acc);outline-offset:1px}
+  .filter-search-main::placeholder{color:var(--mute)}
+
+  /* View toggle */
+  .view-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .view-btn{background:var(--card);border:0;padding:6px 14px;font:inherit;font-size:12px;cursor:pointer;color:var(--mute);transition:all .15s}
+  .view-btn.active{background:var(--acc);color:#fff;font-weight:600}
+
+  /* Table */
+  .table-wrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+  table.rt{width:100%;border-collapse:collapse;font-size:13px;text-align:left}
+  table.rt th{background:color-mix(in srgb,var(--card) 80%,var(--bg));padding:11px 14px;border-bottom:2px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);font-weight:700;white-space:nowrap}
+  table.rt td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.rt tr:last-child td{border-bottom:0}
+  table.rt tr:hover{background:color-mix(in srgb,var(--acc) 3%,transparent)}
+
+  .td-num{color:var(--mute);font-size:11px;width:28px;text-align:center}
+  .td-source{width:110px}
+  .td-title{width:230px;min-width:180px}
+  .td-title a{color:var(--ink);text-decoration:none;font-weight:600;font-size:13.5px;line-height:1.4;display:block}
+  .td-title a:hover{color:var(--acc);text-decoration:underline}
+  .td-snippet{min-width:240px;color:var(--mute);font-size:12.5px;line-height:1.5}
+  .td-kw{width:90px}
+  .td-date{white-space:nowrap;font-size:12px;color:var(--mute);width:108px}
+  .td-rel{width:130px}
+  .td-kat{width:75px}
+  .td-sent{width:70px}
+  .td-conf{width:58px;text-align:center}
+  .td-reason{min-width:160px;max-width:220px}
+  .td-risk{width:150px}
+
+  /* Source badge */
+  .badge-src{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .badge-gnews{background:#e8f0fe;color:#1967d2}
+  .badge-bing{background:#e0f2fe;color:#0284c7}
+  .badge-youtube{background:#fee2e2;color:#dc2626}
+  .badge-x{background:#f3f4f6;color:#111827}
+  .badge-instagram{background:#fce7f3;color:#be185d}
+  .badge-facebook{background:#dbeafe;color:#1d4ed8}
+  .badge-reddit{background:#ffedd5;color:#c2410c}
+  .badge-tiktok{background:#ecfeff;color:#0e7490}
+  .badge-threads{background:#f4f4f5;color:#18181b}
+  .badge-linkedin{background:#e0e7ff;color:#3730a3}
+  .badge-local{background:#ecfdf5;color:#065f46}
+  .badge-default{background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--acc)}
+  .sub-pub{font-size:11px;color:var(--mute);margin-top:3px}
+  .method-tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin-top:3px;letter-spacing:0.2px}
+  .meth-pw{background:rgba(129,140,248,0.12);color:#818cf8;border:1px solid rgba(129,140,248,0.3)}
+  .meth-gnews{background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3)}
+  .meth-bing{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.3)}
+  .meth-yt{background:rgba(248,113,113,0.12);color:#f87171;border:1px solid rgba(248,113,113,0.3)}
+  .meth-local{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3)}
+
+  /* Channel tag: News, Sosmed, Blog/Web */
+  .chan-tag{display:inline-block;padding:1.5px 6px;border-radius:4px;font-size:9.5px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;margin-bottom:3px}
+  .chan-news{background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)}
+  .chan-social{background:rgba(236,72,153,0.15);color:#f472b6;border:1px solid rgba(236,72,153,0.3)}
+  .chan-web{background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3)}
+
+  /* Keyword / stakeholder badge */
+  .kw-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 20%,transparent);margin-bottom:3px}
+  .kw-badge.stk{background:color-mix(in srgb,#6d28d9 10%,transparent);color:#6d28d9;border-color:color-mix(in srgb,#6d28d9 20%,transparent)}
+
+  /* AI classification */
+  .ai-cat{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid currentColor;margin-bottom:4px}
+  .ai-fakta{color:#12805c}.ai-rumor{color:#c2410c}.ai-opini{color:#6d28d9}.ai-nj{color:var(--mute)}
+  .ai-sent{font-size:11px;color:var(--mute)}
+  .ai-reason{font-size:11.5px;color:var(--mute);font-style:italic;margin-top:3px;line-height:1.4}
+
+  /* Risk signals */
+  .risk-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+  .risk-tag{display:inline-flex;align-items:center;padding:1px 7px;border-radius:4px;font-size:10.5px;font-weight:700;background:color-mix(in srgb,var(--risk) 10%,transparent);color:var(--risk);border:1px solid color-mix(in srgb,var(--risk) 25%,transparent)}
+
+  /* Impact (good/bad terhadap entitas) & Credibility tier sumber */
+  .impact-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid currentColor;margin-bottom:4px}
+  .impact-baik{color:var(--pos)}.impact-buruk{color:var(--neg)}.impact-netral{color:var(--mute)}
+  .cred-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10.5px;font-weight:600;margin-bottom:4px;background:color-mix(in srgb,var(--mute) 12%,transparent);color:var(--mute)}
+  .cred-official{background:color-mix(in srgb,var(--pos) 12%,transparent);color:var(--pos)}
+  .cred-mainstream{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc)}
+  .cred-social_forum{background:color-mix(in srgb,var(--mute) 18%,transparent);color:var(--mute)}
+
+  /* Executive briefing block (ala Ringkasan Intelijen + Analisis Dampak) */
+  .briefing{margin-top:6px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--acc) 5%,transparent);border:1px solid color-mix(in srgb,var(--acc) 14%,transparent);font-size:12px;line-height:1.5}
+  .briefing b{color:var(--acc)}
+  .briefing .bf-impact{margin-top:4px}
+  .briefing .bf-impact b{color:inherit}
+
+  /* Relevance bar */
+  .rel-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;margin-bottom:4px}
+  .rel-high{background:color-mix(in srgb,var(--pos) 14%,transparent);color:var(--pos);border:1px solid color-mix(in srgb,var(--pos) 30%,transparent)}
+  .rel-mid{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 30%,transparent)}
+  .rel-low{background:color-mix(in srgb,var(--mute) 12%,transparent);color:var(--mute);border:1px solid color-mix(in srgb,var(--mute) 25%,transparent)}
+  .rel-bar-bg{width:100%;height:4px;background:color-mix(in srgb,var(--line) 90%,transparent);border-radius:99px;overflow:hidden;margin-top:4px}
+  .rel-bar-fill{height:100%;border-radius:99px}
+  .fill-high{background:var(--pos)}.fill-mid{background:var(--acc)}.fill-low{background:var(--mute)}
+
+  /* List view */
+  .item{border-top:1px solid var(--line);padding:14px 0}
+  .item:first-child{border-top:0}
+  .item-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px}
+  .item-title a{font-weight:600;font-size:14px;color:var(--ink);text-decoration:none}
+  .item-title a:hover{color:var(--acc);text-decoration:underline}
+  .item-snippet{color:var(--mute);font-size:13px;margin-top:4px}
+  .empty{color:var(--mute);font-size:13.5px;padding:32px 0;text-align:center}
+
+  /* Modal Tambah Perusahaan & IDX Search */
+  .modal-overlay[hidden]{display:none}   /* tanpa ini, display:flex di bawah mengalahkan atribut hidden: modal selalu tampil dan tidak bisa ditutup */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;backdrop-filter:blur(3px)}
+  .modal-card{background:var(--card);border:1px solid var(--line);border-radius:14px;width:100%;max-width:580px;box-shadow:0 12px 35px rgba(0,0,0,0.25);overflow:hidden;display:flex;flex-direction:column}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .modal-close{background:transparent;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--mute);padding:4px;border-radius:6px}
+  .modal-close:hover{color:var(--ink);background:var(--bg)}
+  .tab-nav{display:flex;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 60%,var(--card))}
+  .tab-btn{flex:1;padding:12px 14px;border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+  .tab-btn.active{color:var(--acc);border-bottom-color:var(--acc);background:var(--card)}
+  .tab-pane{padding:18px 20px}
+  .idx-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);transition:border-color .15s,background .15s}
+  .idx-item:hover{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 3%,transparent)}
+  .idx-badge{display:inline-block;font-weight:700;font-size:12px;padding:2px 7px;border-radius:5px;background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc);margin-right:8px}
+</style>
+<link rel="stylesheet" href="/shell.css">
+<script src="/shell.js" defer></script>
+</head>
+<body>
+<main>
+  <div class="hdr">
+    <h1>Media Search <a href="/jobs.html" style="font-size:12px;font-weight:600;margin-left:12px;color:var(--acc);text-decoration:none">Simulate &amp; Cron Jobs →</a></h1>
+    <p>Live Internet Search &nbsp;·&nbsp; News (Google, Bing) &amp; Social Media (YouTube, X, Instagram, Facebook, TikTok, LinkedIn, Reddit, Threads) &nbsp;·&nbsp; Range: <b>last 7 days</b> &nbsp;·&nbsp; <span id="engine"></span></p>
+    <div class="pipeline-detail">
+      <span class="pd-item"><b>Google News</b> RSS feed (official)</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>Bing News</b> RSS feed</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>YouTube</b> internal web API (no login)</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>Social Media</b> Google Social RSS (Anti-Banned, Fast) → X, IG, FB, Reddit, TikTok, Threads, LinkedIn</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>Dedup</b> URL canonicalization + server-side clean</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>AI</b> Groq batch classify (relevant, category, sentiment, confidence, risk, topic)</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>Credibility</b> domain tiering (Official/Mainstream/Social Forum) — deterministic, non-AI</span>
+      <span class="pd-sep">·</span>
+      <span class="pd-item"><b>Impact</b> catalyst vs risk keyword scoring — deterministic, non-AI</span>
+    </div>
+  </div>
+
+  <!-- Entitas & Keyword Tag-box -->
+  <div class="card">
+    <div class="card-title">Entity &amp; Search Keywords</div>
+    <div class="kw-row">
+      <select id="company"></select>
+      <button type="button" id="btnOpenAddCompany" style="padding:9px 14px;background:var(--card);border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--acc);font-size:13px;transition:all .15s">
+        <span>+</span> Cari di IDX / Tambah Perusahaan
+      </button>
+      <div class="tag-box" id="tagBox" onclick="document.getElementById('kwInput').focus()">
+        <input class="kw-input" id="kwInput" placeholder="Type keyword, press Enter or comma to add…">
+      </div>
+    </div>
+    <div class="kw-hint">
+      <span style="color:var(--acc)">■</span> Entity keyword &nbsp;
+      <span style="color:#6d28d9">■</span> Stakeholder &nbsp;·&nbsp;
+      Click × to remove
+    </div>
+  </div>
+
+  <!-- Financial (perusahaan terbuka) -->
+  <div class="card" id="finCard" hidden>
+    <div class="card-title" id="finTitle">Data Keuangan</div>
+    <div id="finBody"></div>
+  </div>
+
+  <!-- Fetch -->
+  <div class="fetch-wrap">
+    <button class="btn-fetch" id="go">Fetch &amp; Analyze</button>
+    <span class="qinfo" id="qcount"></span>
+  </div>
+
+  <div class="steps">
+    <div class="step" id="s1"><b>Live Fetch</b><span>waiting</span></div>
+    <div class="step" id="s2"><b>Cleaning</b><span>waiting</span></div>
+    <div class="step" id="s3"><b>AI Classification</b><span>waiting</span></div>
+  </div>
+  <div class="err" id="err"></div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid" hidden>
+    <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-l">Total Found</div></div>
+    <div class="stat s-rel"><div class="stat-n" id="sRel">0</div><div class="stat-l">Relevant (≥50%)</div></div>
+    <div class="stat s-risk"><div class="stat-n" id="sRisk">0</div><div class="stat-l">Has Risk Signal</div></div>
+    <div class="stat s-unrel"><div class="stat-n" id="sUnrel">0</div><div class="stat-l">Low Relevance</div></div>
+    <div class="stat s-sources"><div class="stat-n" id="sSrc">-</div><div class="stat-l">Active Sources</div></div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="resultsCard" hidden>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div class="card-title" style="margin-bottom:0">Search Results</div>
+      <div class="view-toggle">
+        <button class="view-btn active" id="btnViewTable" type="button">Table</button>
+        <button class="view-btn" id="btnViewList" type="button">List</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="flt-row">
+        <input class="filter-search-main" type="text" id="quickSearch" placeholder="Search in title or summary…">
+        <span class="filter-count" id="shownCount"></span>
+      </div>
+      <div class="flt-row">
+        <div class="flt">
+          <label>Sort</label>
+          <select id="sortSelect">
+            <option value="rel_desc">Highest Relevance</option>
+            <option value="date_desc">Newest First</option>
+            <option value="conf_desc">Highest Confidence</option>
+            <option value="risk_first">Risk Signal First</option>
+            <option value="rel_asc">Lowest Relevance</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Channel</label>
+          <select id="selChannel">
+            <option value="all">All Channels</option>
+            <option value="news">📰 News (Berita)</option>
+            <option value="social">📱 Social Media (Sosmed)</option>
+            <option value="blog_web">🌐 Blog &amp; Web</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Platform</label>
+          <select id="selPlatform"><option value="all">All</option></select>
+        </div>
+        <div class="flt">
+          <label>Relevance</label>
+          <select id="selRel">
+            <option value="all">All</option>
+            <option value="high">High (≥80%)</option>
+            <option value="mid">Medium (50–79%)</option>
+            <option value="low">Low (&lt;50%)</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>AI Category</label>
+          <select id="selCat">
+            <option value="all">All</option>
+            <option value="fakta">Fact</option>
+            <option value="rumor">Rumor</option>
+            <option value="opini">Opinion</option>
+            <option value="tidak_jelas">Unclear</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Sentiment</label>
+          <select id="selSent">
+            <option value="all">All</option>
+            <option value="positif">Positive</option>
+            <option value="netral">Neutral</option>
+            <option value="negatif">Negative</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Confidence</label>
+          <select id="selConf">
+            <option value="all">All</option>
+            <option value="high">High (≥80%)</option>
+            <option value="mid">Medium (50–79%)</option>
+            <option value="low">Low (&lt;50%)</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Risk Signal</label>
+          <select id="selRisk">
+            <option value="all">All</option>
+            <option value="yes">Has Risk Signal</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Impact</label>
+          <select id="selImpact">
+            <option value="all">All</option>
+            <option value="baik">Good Impact</option>
+            <option value="buruk">Bad Impact</option>
+            <option value="netral">Neutral Impact</option>
+          </select>
+        </div>
+        <div class="flt">
+          <label>Credibility</label>
+          <select id="selCred">
+            <option value="all">All</option>
+            <option value="official">Official (95%)</option>
+            <option value="mainstream">Mainstream (80%)</option>
+            <option value="social_forum">Social Forum (38%)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="tableContainer" class="table-wrap"></div>
+    <div id="listContainer" hidden></div>
+  </div>
+
+  <!-- Modal Tambah / Cari di IDX -->
+  <div class="modal-overlay" id="companyModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-weight:700;font-size:16px">Tambah Perusahaan / Entitas</div>
+        <button type="button" class="modal-close" id="btnCloseModal">×</button>
+      </div>
+      
+      <div class="tab-nav">
+        <button type="button" class="tab-btn active" id="tabIdx">🏢 Perusahaan Terbuka (IDX / Tbk)</button>
+        <button type="button" class="tab-btn" id="tabPrivate">🔒 Perusahaan Tertutup (Private)</button>
+      </div>
+
+      <!-- Tab 1: IDX Search -->
+      <div class="tab-pane" id="paneIdx">
+        <p style="font-size:12.5px;color:var(--mute);margin-bottom:12px">Ketik nama perusahaan atau kode saham (misal: <i>Astra, BBRI, Telkom, Barito</i>). Sistem akan langsung mengambil data emiten dari IDX secara otomatis.</p>
+        <div style="position:relative;margin-bottom:12px">
+          <input type="text" id="idxSearchInput" placeholder="Ketik nama atau kode emiten…" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit">
+          <span id="idxSearching" style="position:absolute;right:14px;top:11px;font-size:12px;color:var(--mute);display:none">Mencari…</span>
+        </div>
+        <div id="idxResultsList" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+          <div style="color:var(--mute);font-size:12px;text-align:center;padding:24px">Ketik minimal 2 karakter untuk mencari emiten di IDX</div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Private Company -->
+      <div class="tab-pane" id="panePrivate" style="display:none">
+        <p style="font-size:12.5px;color:var(--mute);margin-bottom:12px">Tambahkan perusahaan non-Tbk / entitas swasta untuk monitoring media &amp; risiko reputasi.</p>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;display:block;margin-bottom:4px">Nama Perusahaan</label>
+            <input type="text" id="privateCompName" placeholder="Contoh: PT Ruang Raya Indonesia" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;display:block;margin-bottom:4px">Alias / Brand (pisahkan koma)</label>
+            <input type="text" id="privateCompAliases" placeholder="Contoh: Ruangguru, Ruang Guru" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;display:block;margin-bottom:4px">Stakeholder Kunci (pisahkan koma)</label>
+            <input type="text" id="privateCompStakeholders" placeholder="Contoh: Belva Devara, Iman Usman" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit">
+          </div>
+          <button type="button" class="btn-fetch" id="btnSavePrivate" style="margin-top:6px;padding:10px;font-size:13.5px;width:100%">Simpan Perusahaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let cfg, results = [];
+let kwTags = []; // {val, isStakeholder}
+let filterChannel = 'all', filterPlatform = 'all', filterRelevance = 'all', filterCategory = 'all', filterSentiment = 'all', filterConfidence = 'all', filterRisk = 'all', filterImpact = 'all', filterCred = 'all', filterQuery = '', sortBy = 'rel_desc';
+let currentView = 'table';
+
+const SOCIAL_PLATFORMS = new Set([
+  'YouTube', 'X / Twitter', 'Instagram', 'Facebook', 'Reddit', 'TikTok', 'Threads', 'LinkedIn'
+]);
+const NEWS_PLATFORMS = new Set([
+  'Google News', 'Bing News'
+]);
+
+function isSocial(plat) { return SOCIAL_PLATFORMS.has(plat); }
+function isNews(plat) { return NEWS_PLATFORMS.has(plat); }
+
+function getItemChannel(r) {
+  const main = r.mainSource || getMainSource(r);
+  if (isSocial(main)) return 'social';
+  if (isNews(main)) {
+    const u = (r.url || '').toLowerCase();
+    const pub = (r.publisher || '').toLowerCase();
+    if (/blog|wordpress|blogspot|medium\.com|kompasiana|kaskus/i.test(u) || /blog|komunitas|forum/i.test(pub)) {
+      return 'blog_web';
+    }
+    return 'news';
+  }
+  return 'blog_web';
+}
+
+function channelBadge(chan) {
+  if (chan === 'news') return `<span class="chan-tag chan-news">News</span>`;
+  if (chan === 'social') return `<span class="chan-tag chan-social">Sosmed</span>`;
+  return `<span class="chan-tag chan-web">Blog / Web</span>`;
+}
+
+// ─── Tag-box ───────────────────────────────────────────
+function addTag(val, isStakeholder = false) {
+  val = val.trim().replace(/,+$/, '').trim();
+  if (!val || kwTags.find((t) => t.val === val)) return;
+  kwTags.push({ val, isStakeholder });
+  renderTagBox();
+  updateCount();
+}
+function removeTag(val) {
+  kwTags = kwTags.filter((t) => t.val !== val);
+  renderTagBox();
+  updateCount();
+}
+function renderTagBox() {
+  const box = $('#tagBox');
+  box.querySelectorAll('.kw-tag').forEach((e) => e.remove());
+  const input = $('#kwInput');
+  for (const { val, isStakeholder } of kwTags) {
+    const el = document.createElement('span');
+    el.className = 'kw-tag' + (isStakeholder ? ' stk' : '');
+    el.innerHTML = `${esc(val)}<span class="rm" title="Remove">×</span>`;
+    el.querySelector('.rm').onclick = (e) => { e.stopPropagation(); removeTag(val); };
+    box.insertBefore(el, input);
+  }
+}
+
+$('#kwInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const v = e.target.value.replace(/,/g, '').trim();
+    if (v) addTag(v);
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && kwTags.length) {
+    removeTag(kwTags[kwTags.length - 1].val);
+  }
+});
+
+function loadCompanyTags() {
+  const c = cfg?.companies.find((c) => c.id === $('#company').value);
+  if (!c) return;
+  kwTags = [];
+  addTag(c.name, false);
+  (c.aliases || []).forEach((a) => addTag(a, false));
+  (c.stakeholders || []).forEach((s) => addTag(s.name, true));
+  renderTagBox();
+  updateCount();
+}
+
+function allKeywords() { return kwTags.map((t) => t.val); }
+function allSources() { return (cfg?.sources || []).filter((s) => !s.disabled).map((s) => s.key); }
+
+function updateCount() {
+  const n = allKeywords().length * allSources().length;
+  $('#qcount').textContent = `${n} queries · ${allSources().length} active sources`;
+}
+
+// ─── Init ──────────────────────────────────────────────
+(async () => {
+  cfg = await (await fetch('/api/config')).json();
+  $('#engine').textContent = `Groq AI: ${cfg.groqReady ? 'ready ✓' : 'API key not set'}`;
+  cfg.companies.forEach((c) => $('#company').add(new Option(c.name, c.id)));
+  $('#company').onchange = () => { loadCompanyTags(); loadFinancial(); };
+  loadCompanyTags();
+  loadFinancial();
+})();
+
+// ─── Modal Tambah / Cari di IDX ─────────────────────────
+const modal = document.getElementById('companyModal');
+$('#btnOpenAddCompany').onclick = () => {
+  modal.hidden = false;
+  $('#idxSearchInput').value = '';
+  $('#idxResultsList').innerHTML = '<div style="color:var(--mute);font-size:12px;text-align:center;padding:24px">Ketik minimal 2 karakter untuk mencari emiten di IDX</div>';
+  $('#idxSearchInput').focus();
+};
+$('#btnCloseModal').onclick = () => { modal.hidden = true; };
+modal.onclick = (e) => { if (e.target === modal) modal.hidden = true; };
+
+$('#tabIdx').onclick = () => {
+  $('#tabIdx').classList.add('active');
+  $('#tabPrivate').classList.remove('active');
+  $('#paneIdx').style.display = 'block';
+  $('#panePrivate').style.display = 'none';
+};
+$('#tabPrivate').onclick = () => {
+  $('#tabPrivate').classList.add('active');
+  $('#tabIdx').classList.remove('active');
+  $('#panePrivate').style.display = 'block';
+  $('#paneIdx').style.display = 'none';
+};
+
+let idxTimer = null;
+$('#idxSearchInput').oninput = (e) => {
+  const q = e.target.value.trim();
+  clearTimeout(idxTimer);
+  if (q.length < 2) {
+    $('#idxResultsList').innerHTML = '<div style="color:var(--mute);font-size:12px;text-align:center;padding:24px">Ketik minimal 2 karakter untuk mencari emiten di IDX</div>';
+    $('#idxSearching').style.display = 'none';
+    return;
+  }
+  $('#idxSearching').style.display = 'block';
+  idxTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/idx/search?q=' + encodeURIComponent(q));
+      const json = await res.json();
+      renderIdxResults(json.results || []);
+    } catch (err) {
+      $('#idxResultsList').innerHTML = `<div style="color:#dc2626;font-size:12px;padding:12px">Gagal mencari di IDX: ${esc(err.message)}</div>`;
+    } finally {
+      $('#idxSearching').style.display = 'none';
+    }
+  }, 350);
+};
+
+window.chooseIdxCompany = async function(item) {
+  try {
+    const res = await fetch('/api/companies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: item.name,
+        ticker: item.ticker,
+        type: 'public',
+        sector: item.sector,
+        aliases: [item.name, item.ticker, item.shortName].filter(Boolean),
+        stakeholders: []
+      })
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error);
+    modal.hidden = true;
+    await reloadCompanies(saved.company?.id || item.ticker.toLowerCase());
+  } catch (err) {
+    alert('Gagal menyimpan perusahaan: ' + err.message);
+  }
+};
+
+function renderIdxResults(list) {
+  const container = $('#idxResultsList');
+  if (!list.length) {
+    container.innerHTML = '<div style="color:var(--mute);font-size:12px;text-align:center;padding:24px">Tidak ditemukan emiten dengan kata kunci tersebut.</div>';
+    return;
+  }
+  container.innerHTML = list.map((item) => {
+    const jsonStr = JSON.stringify(item).replace(/'/g, '&#39;');
+    return `
+      <div class="idx-item">
+        <div style="flex:1;min-width:0;padding-right:10px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="idx-badge">${esc(item.ticker)}</span>
+            <span style="font-weight:600;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--mute);margin-top:2px">${esc(item.sector || 'Bursa Efek Indonesia')}</div>
+        </div>
+        <button type="button" style="padding:6px 14px;background:var(--acc);color:#fff;border:0;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick='chooseIdxCompany(${jsonStr})'>Pilih &amp; Simpan</button>
+      </div>
+    `;
+  }).join('');
+}
+
+$('#btnSavePrivate').onclick = async () => {
+  const name = $('#privateCompName').value.trim();
+  if (!name) return alert('Nama perusahaan wajib diisi');
+  const aliases = $('#privateCompAliases').value.split(',').map((s) => s.trim()).filter(Boolean);
+  const stk = $('#privateCompStakeholders').value.split(',').map((s) => ({ name: s.trim(), role: 'Leader' })).filter((s) => s.name);
+  try {
+    const res = await fetch('/api/companies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        type: 'private',
+        sector: 'Perusahaan Tertutup / Swasta',
+        aliases,
+        stakeholders: stk
+      })
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error);
+    modal.hidden = true;
+    $('#privateCompName').value = '';
+    $('#privateCompAliases').value = '';
+    $('#privateCompStakeholders').value = '';
+    await reloadCompanies(saved.company?.id);
+  } catch (err) {
+    alert('Gagal menyimpan: ' + err.message);
+  }
+};
+
+async function reloadCompanies(selectId) {
+  cfg = await (await fetch('/api/config')).json();
+  const select = $('#company');
+  select.innerHTML = '';
+  cfg.companies.forEach((c) => select.add(new Option(c.name, c.id)));
+  if (selectId) select.value = selectId;
+  loadCompanyTags();
+  loadFinancial();
+}
+
+// ─── Data keuangan perusahaan terbuka (non-AI) ─────────
+const nf = (n, d = 0) => (n == null ? '-' : Number(n).toLocaleString('id-ID', { maximumFractionDigits: d }));
+const money = (n, cur) => {
+  if (n == null) return '-';
+  const a = Math.abs(n), sign = n < 0 ? '-' : '';
+  const u = a >= 1e12 ? [a / 1e12, ' T'] : a >= 1e9 ? [a / 1e9, ' M'] : a >= 1e6 ? [a / 1e6, ' jt'] : [a, ''];
+  return `${sign}${nf(u[0], 2)}${u[1]} ${cur || ''}`.trim();
+};
+const chg = (v) => (v == null ? '-' : `<span style="color:${v < 0 ? '#dc2626' : '#16a34a'};font-weight:600">${v > 0 ? '+' : ''}${v}%</span>`);
+const escH = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+async function loadFinancial() {
+  const co = cfg.companies.find((c) => c.id === $('#company').value);
+  const card = $('#finCard'), body = $('#finBody');
+  if (!co) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#finTitle').textContent = `Data Keuangan · ${co.name}${co.ticker ? ' (' + co.ticker + ')' : ''}`;
+  if (co.type !== 'public') {
+    body.innerHTML = '<div class="hint">Perusahaan tertutup: tidak ada kewajiban publikasi laporan keuangan. Pantau lewat berita (pendanaan, gugatan, PHK, pergantian direksi).</div>';
+    return;
+  }
+  body.innerHTML = '<div class="hint">Mengambil data keuangan…</div>';
+  try {
+    const r = await fetch('/api/financial/' + co.id);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    if ($('#company').value !== co.id) return;
+    const p = d.price, v = d.valuation, f = d.fundamentals;
+    let x = '';
+    if (d.signals.length) x += d.signals.map((s) => `<div class="impact-tag impact-${s.level}" style="display:block;margin:4px 0">${s.level === 'baik' ? '▲' : '▼'} ${escH(s.text)}</div>`).join('');
+    const cell = (l, val) => `<div class="stat" style="min-width:130px"><div class="stat-n" style="font-size:18px">${val}</div><div class="stat-l">${l}</div></div>`;
+    if (p) x += `<div class="stats-grid" style="margin:10px 0">${cell('Harga (' + escH(p.currency) + ')', nf(p.price))}${cell('Hari ini', chg(p.dayChangePct))}${cell('5 hari', chg(p.change5dPct))}${cell('1 bulan', chg(p.change1mPct))}${cell('3 bulan', chg(p.change3mPct))}${cell('52 minggu', nf(p.low52w) + ' – ' + nf(p.high52w))}${cell('Volume', nf(p.volume))}</div>`;
+    if (v) x += `<div class="stats-grid" style="margin:10px 0">${cell('Market cap', money(v.marketCap, p?.currency))}${cell('PER', nf(v.per, 1))}${cell('PBV', nf(v.pbv, 2))}${cell('EPS', nf(v.eps, 2))}${cell('Dividend yield', v.dividendYieldPct == null ? '-' : v.dividendYieldPct + '%')}${cell('ROE', v.roePct == null ? '-' : v.roePct + '%')}${cell('Net margin', v.profitMarginPct == null ? '-' : v.profitMarginPct + '%')}${cell('DER', v.debtToEquity == null ? '-' : nf(v.debtToEquity, 0) + '%')}</div>`;
+    if (f && f.quarterly.length) {
+      const rows = (list) => list.map((q) => `<tr><td>${escH(q.asOf)}</td><td>${money(q.TotalRevenue, f.currency)}</td><td>${money(q.GrossProfit, f.currency)}</td><td>${money(q.OperatingIncome, f.currency)}</td><td>${money(q.NetIncome, f.currency)}</td><td>${money(q.TotalAssets, f.currency)}</td><td>${money(q.TotalDebt, f.currency)}</td><td>${money(q.StockholdersEquity, f.currency)}</td></tr>`).join('');
+      const head = '<tr><th>Periode</th><th>Pendapatan</th><th>Laba kotor</th><th>Laba operasi</th><th>Laba bersih</th><th>Total aset</th><th>Total utang</th><th>Ekuitas</th></tr>';
+      x += `<div class="table-wrap"><table><thead>${head}</thead><tbody>${rows(f.quarterly)}</tbody></table></div><div class="hint" style="margin:4px 0 10px">Per kuartal. Per tahun:</div><div class="table-wrap"><table><thead>${head}</thead><tbody>${rows(f.annual)}</tbody></table></div>`;
+    }
+    if (d.announcements?.length) x += '<div class="hint" style="margin-top:10px">Pengumuman IDX (90 hari):</div>' + d.announcements.map((a) => `<div>${escH(a.date)} · ${a.url ? `<a href="${escH(a.url)}" target="_blank" rel="noopener">${escH(a.title)}</a>` : escH(a.title)}</div>`).join('');
+    const errs = Object.entries(d.errors || {});
+    if (errs.length) x += `<div class="hint" style="margin-top:10px">Tidak tersedia: ${errs.map(([k, e]) => escH(k + ' – ' + e)).join('; ')}${d.errors.announcements ? ' (pengumuman IDX bisa dicari lewat sumber berita)' : ''}.</div>`;
+    x += `<div class="hint" style="margin-top:6px">Sumber: Yahoo Finance${p?.asOf ? ', per ' + new Date(p.asOf).toLocaleString('id-ID') : ''}. Angka apa adanya, tanpa AI.</div>`;
+    body.innerHTML = x;
+  } catch (e) {
+    body.innerHTML = `<div class="hint" style="color:#dc2626">Gagal mengambil data keuangan: ${escH(e.message)}</div>`;
+  }
+}
+
+// ─── Helpers ───────────────────────────────────────────
+// Tampilkan nama hari + tanggal (bukan teks relatif "5 hari yang lalu" yang kepotong jadi "5 hari yan")
+function formatDate(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function canonicalUrl(u) {
+  try {
+    const url = new URL(u); url.hash = '';
+    for (const k of [...url.searchParams.keys()])
+      if (/^(utm_|fbclid|gclid|igshid|s$|t$)/i.test(k)) url.searchParams.delete(k);
+    url.hostname = url.hostname.replace(/^(www|m|mobile)\./, '').replace(/^twitter\.com$/, 'x.com');
+    return url.toString().replace(/\/$/, '');
+  } catch { return u; }
+}
+
+function getMainSource(r) {
+  const s = (r.sourceName || '').toLowerCase();
+  const sk = (r.sourceKey || '').toLowerCase();
+  const url = (r.url || '').toLowerCase();
+
+  // Social media platforms check FIRST (karena URL Google Social RSS mengandung news.google.com)
+  if (s.includes('instagram') || url.includes('instagram.com')) return 'Instagram';
+  if (s.includes('facebook') || url.includes('facebook.com') || url.includes('fb.com')) return 'Facebook';
+  if (s.includes('reddit') || url.includes('reddit.com')) return 'Reddit';
+  if (s.includes('tiktok') || url.includes('tiktok.com')) return 'TikTok';
+  if (s.includes('linkedin') || url.includes('linkedin.com')) return 'LinkedIn';
+  if (s.includes('threads') || url.includes('threads.net')) return 'Threads';
+  if (s.includes('x /') || s.includes('twitter') || url.includes('x.com') || url.includes('twitter.com') || s === 'x') return 'X / Twitter';
+  if (s.includes('youtube') || url.includes('youtube.com') || url.includes('youtu.be')) return 'YouTube';
+
+  // News engines
+  if (sk === 'google_news' || s.includes('google') || url.includes('news.google.com')) return 'Google News';
+  if (sk === 'bing_news' || s.includes('bing') || url.includes('bing.com')) return 'Bing News';
+  if (s.includes('local') || s.includes('lokal')) return 'Index Lokal';
+  return 'Web';
+}
+
+function srcBadge(src) {
+  const cls = {
+    'Google News': 'badge-gnews',
+    'Bing News': 'badge-bing',
+    'YouTube': 'badge-youtube',
+    'X / Twitter': 'badge-x',
+    'Instagram': 'badge-instagram',
+    'Facebook': 'badge-facebook',
+    'Reddit': 'badge-reddit',
+    'TikTok': 'badge-tiktok',
+    'LinkedIn': 'badge-linkedin',
+    'Threads': 'badge-threads',
+    'Index Lokal': 'badge-local',
+  }[src] || 'badge-default';
+  return `<span class="badge-src ${cls}">${esc(src)}</span>`;
+}
+
+const METHOD_INFO = {
+  social_media: { label: 'Google Social RSS', cls: 'meth-pw' },
+  google_news:  { label: 'Google News RSS',   cls: 'meth-gnews' },
+  bing_news:    { label: 'Bing News RSS',     cls: 'meth-bing' },
+  youtube:      { label: 'YouTube API',       cls: 'meth-yt' },
+  local_index:  { label: 'Index Lokal',       cls: 'meth-local' },
+};
+
+function methodBadge(key) {
+  const m = METHOD_INFO[key];
+  if (!m) return '';
+  return `<span class="method-tag ${m.cls}" title="Metode pengambilan: ${esc(m.label)}">${esc(m.label)}</span>`;
+}
+
+function calcRelevance(item, keywords) {
+  const kws = keywords.map((k) => String(k).trim().toLowerCase()).filter(Boolean);
+
+  // AI hasil tersedia → pakai langsung sebagai skor utama
+  if (item.ai && !item.ai.pending && !item.ai.error) {
+    if (item.ai.relevant === false) {
+      return { score: 12, isRelevant: false, label: 'Low Relevance', source: 'AI' };
+    }
+    if (item.ai.relevant === true && typeof item.ai.confidence === 'number') {
+      const score = Math.round(item.ai.confidence * 100);
+      const label = score >= 80 ? 'High Relevance' : score >= 50 ? 'Relevant' : 'Low Relevance';
+      return { score, isRelevant: score >= 50, label, source: 'AI' };
+    }
+  }
+
+  if (!kws.length) return { score: 60, isRelevant: true, label: 'Relevant', source: 'Keyword' };
+  const title = (item.title || '').toLowerCase();
+  const snip = (item.snippet || item.text || '').toLowerCase();
+  const full = title + ' ' + snip;
+  const main = kws[0];
+  let score = 0;
+  if (title.includes(main)) score += 55; else if (kws.some((k) => title.includes(k))) score += 38;
+  if (snip.includes(main)) score += 28; else if (kws.some((k) => snip.includes(k))) score += 18;
+  const occ = (full.match(new RegExp(main.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+  if (occ >= 3) score += 10; else if (occ >= 2) score += 5;
+  score = Math.min(100, Math.max(12, score));
+  const label = score >= 80 ? 'High Relevance' : score >= 50 ? 'Relevant' : 'Low Relevance';
+  return { score, isRelevant: score >= 50, label, source: 'Keyword' };
+}
+
+function renderRelBadge(rel) {
+  const { score, label, source } = rel;
+  const bc = score >= 80 ? 'rel-high' : score >= 50 ? 'rel-mid' : 'rel-low';
+  const fc = score >= 80 ? 'fill-high' : score >= 50 ? 'fill-mid' : 'fill-low';
+  const srcTag = `<span style="font-size:9.5px;opacity:.6;margin-left:3px">${source === 'AI' ? 'AI' : 'KW'}</span>`;
+  return `<div><div class="rel-badge ${bc}">${score}%&nbsp;${esc(label)}${srcTag}</div><div class="rel-bar-bg"><div class="rel-bar-fill ${fc}" style="width:${score}%"></div></div></div>`;
+}
+
+const CAT_LABEL = { fakta:'Fact', rumor:'Rumor', opini:'Opinion', tidak_jelas:'Unclear' };
+const SENT_COLOR = { positif:'var(--pos)', negatif:'var(--neg)', netral:'var(--net)' };
+
+function renderKat(ai) {
+  if (!ai || ai.pending) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  if (ai.error) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  const cat = ai.relevant ? (ai.category || 'tidak_jelas') : 'tidak_jelas';
+  const label = ai.relevant ? (CAT_LABEL[cat] || cat) : 'Not relevant';
+  return `<span class="ai-cat ai-${cat}">${label}</span>`;
+}
+
+function renderSent(ai) {
+  if (!ai || ai.pending || ai.error || !ai.sentiment) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  const color = SENT_COLOR[ai.sentiment] || 'var(--mute)';
+  const labels = { positif:'Positive', negatif:'Negative', netral:'Neutral' };
+  return `<span style="color:${color};font-size:12.5px;font-weight:600">${labels[ai.sentiment] || esc(ai.sentiment)}</span>`;
+}
+
+function renderConf(ai) {
+  if (!ai || ai.pending || ai.error || typeof ai.confidence !== 'number') return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  const pct = Math.round(ai.confidence * 100);
+  const color = pct >= 80 ? 'var(--pos)' : pct >= 50 ? 'var(--acc)' : 'var(--mute)';
+  return `<span style="color:${color};font-size:13px;font-weight:700">${pct}%</span>`;
+}
+
+function renderReason(ai) {
+  if (!ai || ai.pending || ai.error || !ai.reason) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  return `<span class="ai-reason" style="font-size:12px">${esc(ai.reason)}</span>`;
+}
+
+const IMPACT_LABEL = { baik: 'Good Impact', buruk: 'Bad Impact', netral: 'Neutral Impact' };
+// Impact dihitung non-AI (lihat src/impact.js), jadi tetap ada walau ai.error. Tapi menampilkannya tetap
+// butuh tahu item ini relevan ke entitas atau tidak: kalau AI sukses pakai ai.relevant (akurat), kalau AI
+// gagal pakai fallback keyword r.relevance.isRelevant (sama seperti relevance badge KW) + tandai "KW".
+function renderImpact(r) {
+  const ai = r?.ai;
+  if (!ai || ai.pending || !ai.impact) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  const relevant = ai.error ? r.relevance?.isRelevant : ai.relevant;
+  if (!relevant) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  const srcTag = ai.error ? `<span style="font-size:9px;opacity:.6;margin-left:2px">KW</span>` : '';
+  return `<span class="impact-tag impact-${ai.impact}">${IMPACT_LABEL[ai.impact] || ai.impact}${srcTag}</span>`;
+}
+
+// Tiering kredibilitas sumber — deterministik (non-AI), lihat src/credibility.js. Selalu ada selama URL valid,
+// tidak tergantung status AI.
+function renderCredibility(cred) {
+  if (!cred?.key) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  return `<span class="cred-tag cred-${cred.key}">${esc(cred.label)} ${cred.score}%</span>`;
+}
+
+// Blok briefing ala "Ringkasan Intelijen + Analisis Dampak": gabungan topik & inti bahasan dari AI,
+// dengan baris status (deterministik dari credibility+category) dan analisis dampak.
+function renderBriefing(r) {
+  const ai = r.ai;
+  if (!ai || ai.pending) return '';
+  const lines = [];
+  if (!ai.error) {
+    // Topik & Inti Bahasan butuh reasoning AI sungguhan — kosong kalau AI gagal
+    const topikBahasan = [ai.topic ? `Topik: ${esc(ai.topic)}` : '', ai.reason ? `Inti Bahasan: ${esc(ai.reason)}` : '']
+      .filter(Boolean).join(' | ');
+    if (topikBahasan) lines.push(`<div>📋 <b>RINGKASAN INTELIJEN</b>: ${topikBahasan}${ai.status_line ? ` | Status: ${esc(ai.status_line)}` : ''}</div>`);
+    else if (ai.status_line) lines.push(`<div>📋 <b>RINGKASAN INTELIJEN</b>: Status: ${esc(ai.status_line)}</div>`);
+  } else if (ai.status_line) {
+    // status_line non-AI (kredibilitas domain) tetap valid walau AI gagal
+    lines.push(`<div>📋 <b>RINGKASAN INTELIJEN</b>: Status: ${esc(ai.status_line)} <span style="opacity:.65">· AI classification gagal, relevansi belum terverifikasi</span></div>`);
+  }
+  // Analisis Dampak non-AI: tampilkan hanya kalau item kemungkinan relevan (AI jika sukses, fallback keyword jika tidak)
+  const relevant = ai.error ? r.relevance?.isRelevant : ai.relevant;
+  if (ai.impact_reason && relevant) lines.push(`<div class="bf-impact"><b>Analisis Dampak:</b> ${esc(ai.impact_reason)}</div>`);
+  if (!lines.length) return '';
+  return `<div class="briefing">${lines.join('')}</div>`;
+}
+
+function renderRisk(ai) {
+  const risks = (ai?.risk_signals || []);
+  if (!risks.length) return `<span style="color:var(--mute);font-size:11px">—</span>`;
+  return `<div class="risk-wrap">${risks.map((r) => `<span class="risk-tag">${esc(r.replace(/_/g,' '))}</span>`).join('')}</div>`;
+}
+
+// ─── View toggle ───────────────────────────────────────
+$('#btnViewTable').onclick = () => { currentView='table'; $('#btnViewTable').classList.add('active'); $('#btnViewList').classList.remove('active'); $('#tableContainer').hidden=false; $('#listContainer').hidden=true; };
+$('#btnViewList').onclick  = () => { currentView='list';  $('#btnViewList').classList.add('active');  $('#btnViewTable').classList.remove('active'); $('#listContainer').hidden=false; $('#tableContainer').hidden=true; };
+
+// ─── Filters ──────────────────────────────────────────
+$('#sortSelect').onchange   = (e) => { sortBy = e.target.value; render(); };
+$('#selChannel').onchange   = (e) => { filterChannel = e.target.value; filterPlatform = 'all'; if ($('#selPlatform')) $('#selPlatform').value = 'all'; populatePlatformSelect(); render(); };
+$('#selPlatform').onchange  = (e) => { filterPlatform = e.target.value; render(); };
+$('#selRel').onchange       = (e) => { filterRelevance = e.target.value; render(); };
+$('#selCat').onchange       = (e) => { filterCategory = e.target.value; render(); };
+$('#selSent').onchange      = (e) => { filterSentiment = e.target.value; render(); };
+$('#selConf').onchange      = (e) => { filterConfidence = e.target.value; render(); };
+$('#selRisk').onchange      = (e) => { filterRisk = e.target.value; render(); };
+$('#selImpact').onchange    = (e) => { filterImpact = e.target.value; render(); };
+$('#selCred').onchange      = (e) => { filterCred = e.target.value; render(); };
+$('#quickSearch').oninput   = (e) => { filterQuery = e.target.value.trim().toLowerCase(); render(); };
+
+function populatePlatformSelect() {
+  const sel = $('#selPlatform');
+  if (!sel) return;
+  const current = sel.value;
+  const platforms = [...new Set(results.map((r) => r.mainSource))]
+    .filter((p) => {
+      if (filterChannel === 'social') return isSocial(p);
+      if (filterChannel === 'news') return isNews(p);
+      if (filterChannel === 'blog_web') return !isSocial(p) && !isNews(p);
+      return true;
+    })
+    .sort();
+  sel.innerHTML = '<option value="all">All</option>';
+  for (const p of platforms) {
+    const count = results.filter((r) => r.mainSource === p).length;
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = `${p} (${count})`;
+    sel.add(opt);
+  }
+  if (!platforms.includes(current)) sel.value = 'all';
+  else sel.value = current;
+}
+
+// ─── Stats ────────────────────────────────────────────
+function renderStats() {
+  const rel = results.filter((r) => r.relevance?.isRelevant);
+  const riskItems = results.filter((r) => (r.ai?.risk_signals || []).length > 0);
+  $('#sTotal').textContent = results.length;
+  $('#sRel').textContent = rel.length;
+  $('#sRisk').textContent = riskItems.length;
+  $('#sUnrel').textContent = results.length - rel.length;
+  $('#sSrc').textContent = [...new Set(results.map((r) => r.mainSource))].length;
+  populatePlatformSelect();
+  $('#statsGrid').hidden = false;
+}
+
+// ─── Render ───────────────────────────────────────────
+function render() {
+  $('#resultsCard').hidden = false;
+  const shown = results.filter((r) => {
+    const plat = r.mainSource;
+    const chan = getItemChannel(r);
+    if (filterChannel === 'social' && chan !== 'social') return false;
+    if (filterChannel === 'news' && chan !== 'news') return false;
+    if (filterChannel === 'blog_web' && chan !== 'blog_web') return false;
+    if (filterPlatform !== 'all' && plat !== filterPlatform) return false;
+    if (filterRelevance === 'high' && (r.relevance?.score ?? 0) < 80) return false;
+    if (filterRelevance === 'mid') { const s = r.relevance?.score ?? 0; if (s < 50 || s >= 80) return false; }
+    if (filterRelevance === 'low' && (r.relevance?.score ?? 0) >= 50) return false;
+    if (filterCategory !== 'all') {
+      if (!r.ai || r.ai.pending || r.ai.error) return false;
+      if (r.ai.category !== filterCategory) return false;
+    }
+    if (filterSentiment !== 'all') {
+      if (!r.ai || r.ai.pending || r.ai.error) return false;
+      if (r.ai.sentiment !== filterSentiment) return false;
+    }
+    if (filterConfidence !== 'all') {
+      if (!r.ai || r.ai.pending || r.ai.error) return false;
+      const conf = (r.ai.confidence ?? 0) * 100;
+      if (filterConfidence === 'high' && conf < 80) return false;
+      if (filterConfidence === 'mid') { if (conf < 50 || conf >= 80) return false; }
+      if (filterConfidence === 'low' && conf >= 50) return false;
+    }
+    if (filterRisk === 'yes' && !(r.ai?.risk_signals || []).length) return false;
+    if (filterImpact !== 'all') {
+      // Impact non-AI: tetap valid walau AI gagal, asal relevansinya ada (AI jika sukses, fallback keyword jika tidak)
+      if (!r.ai || r.ai.pending || !r.ai.impact) return false;
+      const relevant = r.ai.error ? r.relevance?.isRelevant : r.ai.relevant;
+      if (!relevant) return false;
+      if (r.ai.impact !== filterImpact) return false;
+    }
+    // Kredibilitas deterministik, tidak bergantung status AI — tersedia selama URL-nya valid.
+    if (filterCred !== 'all' && r.credibility?.key !== filterCred) return false;
+    if (filterQuery) {
+      const q = filterQuery;
+      if (!(r.title||'').toLowerCase().includes(q) &&
+          !(r.snippet||'').toLowerCase().includes(q) &&
+          !(r.keyword||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === 'rel_desc') return (b.relevance?.score ?? 0) - (a.relevance?.score ?? 0);
+    if (sortBy === 'rel_asc') return (a.relevance?.score ?? 0) - (b.relevance?.score ?? 0);
+    if (sortBy === 'conf_desc') return (b.ai?.confidence ?? 0) - (a.ai?.confidence ?? 0);
+    if (sortBy === 'risk_first') {
+      const ra = (a.ai?.risk_signals||[]).length > 0 ? 0 : 1;
+      const rb = (b.ai?.risk_signals||[]).length > 0 ? 0 : 1;
+      return ra - rb || (b.relevance?.score ?? 0) - (a.relevance?.score ?? 0);
+    }
+    if (sortBy === 'date_desc') {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    }
+    return 0;
+  });
+
+  const sc = $('#shownCount');
+  if (sc) sc.textContent = shown.length !== results.length ? `${shown.length} of ${results.length}` : `${results.length} results`;
+
+  const empty = `<div class="empty">${results.length === 0 ? 'Click Fetch & Analyze to start.' : 'No results for current filters.'}</div>`;
+
+  if (!shown.length) { $('#tableContainer').innerHTML = empty; $('#listContainer').innerHTML = empty; return; }
+
+  // TABLE
+  $('#tableContainer').innerHTML = `<table class="rt">
+    <thead><tr>
+      <th style="width:28px">#</th>
+      <th class="td-source">Source</th>
+      <th class="td-title">Title</th>
+      <th class="td-snippet">Summary</th>
+      <th class="td-kw">Keyword</th>
+      <th class="td-date">Date</th>
+      <th class="td-rel">Relevance</th>
+      <th class="td-kat">Category</th>
+      <th class="td-sent">Sentiment</th>
+      <th class="td-conf">Conf.</th>
+      <th class="td-reason">AI Reason</th>
+      <th class="td-risk">Risk Signal</th>
+      <th class="td-kat">Impact</th>
+      <th class="td-kat">Credibility</th>
+    </tr></thead>
+    <tbody>${shown.map((r, i) => {
+      const isStk = kwTags.find((t) => t.val === r.keyword && t.isStakeholder);
+      const kwBadge = r.keyword ? `<span class="kw-badge${isStk ? ' stk' : ''}">${esc(r.keyword)}</span>` : '';
+      return `<tr>
+        <td class="td-num">${i+1}</td>
+        <td class="td-source">
+          <div style="margin-bottom:2px">${channelBadge(getItemChannel(r))}</div>
+          ${srcBadge(r.mainSource)}
+          ${methodBadge(r.sourceKey)}
+          ${r.publisher && r.publisher !== r.mainSource ? `<div class="sub-pub">${esc(r.publisher)}</div>` : ''}
+        </td>
+        <td class="td-title"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></td>
+        <td class="td-snippet">${esc((r.snippet || r.text || '').slice(0, 200))}</td>
+        <td class="td-kw">${kwBadge}</td>
+        <td class="td-date">${esc(formatDate(r.date))}</td>
+        <td class="td-rel">${renderRelBadge(r.relevance || {score:50,label:'Relevant',source:'Keyword'})}</td>
+        <td class="td-kat">${renderKat(r.ai)}</td>
+        <td class="td-sent">${renderSent(r.ai)}</td>
+        <td class="td-conf">${renderConf(r.ai)}</td>
+        <td class="td-reason">${renderReason(r.ai)}</td>
+        <td class="td-risk">${renderRisk(r.ai)}</td>
+        <td class="td-kat">${renderImpact(r)}</td>
+        <td class="td-kat">${renderCredibility(r.credibility)}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  // LIST
+  $('#listContainer').innerHTML = shown.map((r) => {
+    const isStk = kwTags.find((t) => t.val === r.keyword && t.isStakeholder);
+    const kwBadge = r.keyword ? `<span class="kw-badge${isStk ? ' stk' : ''}">${esc(r.keyword)}</span>` : '';
+    return `<div class="item">
+      <div class="item-meta">
+        ${channelBadge(getItemChannel(r))}
+        ${srcBadge(r.mainSource)}
+        ${methodBadge(r.sourceKey)}
+        ${r.publisher && r.publisher !== r.mainSource ? `<span style="color:var(--mute);font-size:12px">${esc(r.publisher)}</span>` : ''}
+        ${kwBadge}
+        ${r.date ? `<span style="color:var(--mute);font-size:12px">${esc(formatDate(r.date))}</span>` : ''}
+        <span style="margin-left:auto">${renderRelBadge(r.relevance || {score:50,label:'Relevant',source:'Keyword'})}</span>
+      </div>
+      <div class="item-title"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></div>
+      <div class="item-snippet">${esc((r.snippet || r.text || '').slice(0,280))}</div>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+        ${renderKat(r.ai)} ${renderImpact(r)} ${renderCredibility(r.credibility)} ${renderSent(r.ai)} ${renderConf(r.ai)}
+      </div>
+      ${renderBriefing(r)}
+      ${(r.ai?.risk_signals||[]).length ? `<div class="risk-wrap" style="margin-top:4px">${(r.ai.risk_signals).map((s) => `<span class="risk-tag">${esc(s.replace(/_/g,' '))}</span>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ─── Fetch pipeline ───────────────────────────────────
+function step(id, state, text) { const el=$('#'+id); el.className='step '+state; el.querySelector('span').textContent=text; }
+
+async function post(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+$('#go').onclick = async () => {
+  $('#err').textContent = '';
+  results = [];
+  const seenUrls = new Set();
+  const kws = allKeywords();
+  if (!kws.length) { $('#err').textContent = 'Select an entity or add a keyword.'; return; }
+  const srcs = allSources();
+
+  ['s1','s2','s3'].forEach((s) => step(s,'','waiting'));
+  $('#resultsCard').hidden = false;
+  $('#statsGrid').hidden = false;
+  renderStats(); render();
+  $('#go').disabled = true;
+
+  try {
+    step('s1','run','Searching…');
+    const body = JSON.stringify({ keywords: kws, sources: srcs, modifiers: ['none'] });
+    const resp = await fetch('/api/fetch/stream', { method:'POST', headers:{'Content-Type':'application/json'}, body });
+    if (!resp.ok) { const j = await resp.json(); throw new Error(j.error || resp.statusText); }
+
+    const rawItems = [];
+    let doneInfo = null;
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const msg = JSON.parse(line.slice(6));
+          if (msg.type === 'chunk') {
+            for (const r of (msg.items || [])) {
+              rawItems.push({ ...r, sourceKey: msg.source });
+              const cu = canonicalUrl(r.url || '');
+              if (!cu || seenUrls.has(cu)) continue;
+              seenUrls.add(cu);
+              const title = (r.title || '').trim();
+              const snippet = (r.snippet || '').trim();
+              if (/^balasan mode ai/i.test(title) || /^ai overview/i.test(title)) continue;
+              const item = {
+                id: results.length + 1,
+                sourceKey: r.sourceKey || msg.source,
+                mainSource: getMainSource({ ...r, sourceKey: msg.source }),
+                publisher: r.sourceName || '',
+                url: r.url || cu,
+                title: title || 'Untitled',
+                snippet,
+                text: [title, snippet].filter(Boolean).join(' — '),
+                date: r.date || null,
+                keyword: r.keyword || null,
+                ai: { pending: true },
+              };
+              item.relevance = calcRelevance(item, kws);
+              results.push(item);
+            }
+            step('s1','run',`${results.length} items received… (${msg.source})`);
+            renderStats(); render();
+          } else if (msg.type === 'done') {
+            doneInfo = msg;
+          } else if (msg.type === 'error') {
+            throw new Error(msg.error);
+          }
+        } catch (e) { if (e.message !== 'Unexpected end of JSON input') throw e; }
+      }
+    }
+
+    const errCount = doneInfo?.errors?.length || 0;
+    step('s1','ok',`${results.length} results from ${doneInfo?.queries||'?'} queries${errCount ? `, ${errCount} failed` : ''}`);
+    if (errCount) $('#err').textContent = (doneInfo.errors||[]).slice(0,3).map((e)=>e.error).join('\n');
+    if (!results.length) throw new Error('No results found.');
+
+    step('s2','run','Removing duplicates & spam…');
+    const c = await post('/api/clean', { items: rawItems });
+    step('s2','ok',`${c.stats.output} unique items (${c.stats.duplicate} duplicates)`);
+
+    if (c.items.length) {
+      step('s3','run',`AI classifying ${Math.min(c.items.length, cfg.aiMaxItems || 500)} items…`);
+      const ent = cfg.companies.find((co) => co.id === $('#company').value);
+      const k = await post('/api/classify', { items: c.items, entity: { ...ent, keyword: kws.join(', ') } });
+      const aiMap = new Map();
+      (k.items||[]).forEach((it) => aiMap.set(canonicalUrl(it.url), it.ai));
+      for (const item of results) {
+        const cu = canonicalUrl(item.url);
+        item.ai = aiMap.has(cu) ? aiMap.get(cu) : { pending: false, relevant: false, reason: 'Removed during cleaning' };
+        item.relevance = calcRelevance(item, kws);
+      }
+      const failed = results.filter((r) => r.ai?.error).length;
+      step('s3','ok',`Done${failed ? `, ${failed} without AI` : ''}`);
+    } else {
+      step('s3','ok','Skipped (no items after cleaning)');
+    }
+
+    renderStats(); render();
+  } catch (e) {
+    $('#err').textContent += (($('#err').textContent ? '\n' : '') + e.message);
+    document.querySelectorAll('.step.run').forEach((s) => (s.className='step'));
+  } finally { $('#go').disabled = false; }
+};
+</script>
+</body>
+</html>

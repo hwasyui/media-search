@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Media Search · Task Runner</title>
+<link rel="stylesheet" href="/shell.css">
+<script src="/shell.js" defer></script>
+<style>
+  :root{--bg:#0b0d10;--panel:#0f1318;--panel2:#141920;--line:#232932;--line2:#2e3641;--text:#e6e9ed;--muted:#8a93a0;--dim:#5b636e;--accent:#4c8dff;--green:#2fbf71;--red:#ef5b5b;--amber:#fbbf24}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  .page{padding:24px 28px 60px;max-width:1280px}
+  .head{border:1px solid var(--line);background:var(--panel);padding:18px 22px;margin-bottom:22px;border-left:3px solid var(--accent)}
+  .head h1{font-size:20px;letter-spacing:-.01em}
+  .head p{color:var(--muted);margin-top:4px}
+  .cols{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:22px;align-items:start}
+  h2{font-size:11.5px;letter-spacing:.12em;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);padding:18px;margin-bottom:14px}
+  .panel h3{font-size:15px;margin-bottom:4px}
+  .panel p{color:var(--muted);font-size:13px;margin-bottom:12px}
+  select{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--text);padding:10px 12px;font:inherit;margin-bottom:10px}
+  .btn{display:flex;width:100%;justify-content:center;align-items:center;gap:8px;padding:11px 14px;font:inherit;font-weight:600;border:1px solid var(--line2);background:var(--panel2);color:var(--text);cursor:pointer}
+  .btn:hover:not(:disabled){border-color:var(--accent)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.pri:hover:not(:disabled){filter:brightness(1.1)}
+  .btn+.btn{margin-top:8px}
+  .btn.warn{border-color:#5a3a3a;color:#f1a5a5}
+  .term{background:#000;border:1px solid var(--line);display:flex;flex-direction:column;min-height:520px}
+  .term-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#06080a;gap:10px;flex-wrap:wrap}
+  .state{font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;display:flex;align-items:center;gap:8px}
+  .state i{width:8px;height:8px;background:var(--dim);display:inline-block}
+  .state.running i{background:var(--green);animation:blink 1s infinite} .state.running{color:var(--green)}
+  .state.done{color:var(--green)} .state.done i{background:var(--green)}
+  .state.error{color:var(--red)} .state.error i{background:var(--red)}
+  .state.cancelled,.state.interrupted{color:var(--amber)} .state.cancelled i,.state.interrupted i{background:var(--amber)}
+  @keyframes blink{50%{opacity:.25}}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:#06080a} .chips:empty{display:none}
+  .chip{font:11.5px ui-monospace,Menlo,monospace;padding:3px 9px;border:1px solid var(--line2);background:var(--panel);color:var(--muted);cursor:pointer}
+  .chip.on{border-color:var(--accent);color:var(--text)} .chip.old{opacity:.7} .chip.old i{display:none} .chip.rs{border-color:#8a6d1f;color:var(--amber)} .chip i{display:inline-block;width:7px;height:7px;background:var(--green);margin-right:6px;animation:blink 1s infinite}
+  .bar{height:3px;background:#12161b} .bar>div{height:100%;background:var(--accent);width:0;transition:width .4s}
+  #log{flex:1;padding:14px 16px;overflow:auto;max-height:560px;font:12.5px/1.65 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+  #log .l{display:block} #log .t{color:var(--dim)} #log .h{color:#7db3ff;font-weight:700} #log .e{color:var(--red)} #log .ok{color:var(--green)} #log .w{color:var(--amber)}
+  .term-foot{display:flex;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .term-foot button{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit}
+  .sum{margin-top:14px;border:1px solid var(--line);background:var(--panel);overflow-x:auto}
+  .sum h4{padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
+  table{border-collapse:collapse;width:100%;font-size:12.5px} th,td{padding:8px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap} th{color:var(--muted);font-weight:600}
+  .adv{margin-top:18px;font-size:12.5px;color:var(--dim)}
+  @media (max-width:980px){.cols{grid-template-columns:1fr}.page{padding:16px}}
+  @media (max-width:560px){.page{padding:12px}.head{padding:14px}.panel{padding:14px}#log{max-height:420px;font-size:12px}.term{min-height:360px}.term-top{padding:8px 10px}}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%234c8dff%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial%27%3EM%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <h1>Task Runner</h1>
+    <p>Jalankan pengambilan data di server, di background. Halaman ini boleh ditutup dan dibuka lagi; job tetap jalan dan log bisa dipantau di sini. Semua pengaturan memakai nilai default terbaik.</p>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h2>Panel kontrol</h2>
+      <div class="panel">
+        <h3>1. Crawl satuan (per perusahaan)</h3>
+        <p>Pilih satu perusahaan untuk diperbarui: data keuangan, berita, klasifikasi AI, gambar, dan analisis AI.</p>
+        <select id="company"></select>
+        <button class="btn pri" id="goOne">▶ Mulai crawl perusahaan terpilih</button>
+      </div>
+      <div class="panel">
+        <h3>2. Full crawl (semua perusahaan)</h3>
+        <p>Menjalankan semua perusahaan satu per satu (berurutan) dengan jeda antar perusahaan supaya sumber tidak membatasi akses. Berjalan di background.</p>
+        <button class="btn pri" id="goAll">▶ Mulai full batch crawl</button>
+        <button class="btn" id="goAllRaw" title="Hanya mengambil dan menyimpan data mentah; AI bisa dijalankan terpisah dan bersamaan">▷ Full crawl tanpa AI (AI menyusul)</button>
+      </div>
+      <div class="panel">
+        <h3>3. Pipeline lanjutan</h3>
+        <p>Proses susulan untuk data yang sudah tersimpan, tanpa crawl ulang.</p>
+        <button class="btn" id="goReclass">✦ Klasifikasi ulang berita yang AI-nya gagal</button>
+        <button class="btn" id="goFin">$ Perbarui data keuangan semua emiten</button>
+        <button class="btn" id="goImages">▣ Ambil gambar artikel</button>
+        <button class="btn" id="goRescore">⚑ Hitung ulang keterkaitan &amp; tag risiko (tanpa AI)</button>
+        <button class="btn" id="goDedupe">⌫ Buang duplikat yang sudah tersimpan</button>
+        <button class="btn" id="goAnalysis">≣ Buat ulang analisis AI semua perusahaan</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>Terminal log aktivitas sistem</h2>
+      <div class="term">
+        <div class="term-top">
+          <span class="state" id="state"><i></i><span id="stateText">STANDBY</span></span>
+          <span style="display:flex;gap:10px;align-items:center"><span id="stInfo" style="font:12px ui-monospace,Menlo,monospace;color:var(--muted)"></span>
+            <button class="btn" id="resume" disabled style="width:auto;padding:5px 12px;margin:0">Lanjutkan</button>
+            <button class="btn warn" id="cancel" disabled style="width:auto;padding:5px 12px;margin:0">Hentikan</button></span>
+        </div>
+        <div id="jobChips" class="chips"></div>
+        <div class="bar"><div id="barFill"></div></div>
+        <div id="log"><span class="l"><span class="t">[--:--:--]</span> Task Runner siap menerima instruksi.</span></div>
+        <div class="term-foot"><span>MySQL · schema media-search</span><button id="clear" type="button">Bersihkan log</button></div>
+      </div>
+      <div class="sum" id="sum" hidden><h4>Ringkasan hasil</h4><div id="sumBody"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const ACTIVE = ['running', 'waiting'];
+let jobId = null, cleared = 0, shown = 0, activeJobs = [];
+const TITLES = { portfolio: 'Crawl perusahaan', images: 'Ambil gambar', analysis: 'Analisis AI', reclassify: 'Klasifikasi ulang', rescore: 'Keterkaitan & tag risiko', financial: 'Data keuangan', dedupe: 'Buang duplikat', cron: 'Cron', simulate: 'Simulate' };
+
+// Jalur yang dipakai tiap tombol (harus sama dengan lanesOf di server). Tombol dinonaktifkan hanya bila jalurnya sedang dipakai job lain,
+// jadi crawl dan AI bisa berjalan bersamaan. "Full crawl" tetap bisa dipakai saat AI sibuk: server otomatis menjalankannya tanpa AI.
+const LANES = { goOne: ['crawl'], goAll: ['crawl'], goAllRaw: ['crawl'], goReclass: ['ai'], goImages: ['crawl'], goFin: ['crawl'], goAnalysis: ['ai'], goRescore: ['db'], goDedupe: ['db'] };
+function applyLanes() {
+  const held = activeJobs.flatMap((j) => j.lanes || []);
+  for (const [id, need] of Object.entries(LANES)) {
+    const el = $('#' + id);
+    const busy = activeJobs.length > 0 && (held.includes('db') || need.includes('db') || need.some((l) => held.includes(l)));
+    el.disabled = busy;
+    el.title = busy ? (held.includes('db') || need.includes('db') ? 'Pemeliharaan data harus berjalan sendiri' : 'Jalur ini sedang dipakai job lain') : el.dataset.title || '';
+  }
+}
+
+(async () => {
+  document.querySelectorAll('.panel .btn').forEach((b) => (b.dataset.title = b.title || ''));
+  const cfg = await (await fetch('/api/config')).json();
+  $('#company').innerHTML = cfg.companies.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.ticker ? c.ticker + ' · ' : '') + esc(c.name) + '</option>').join('');
+  const jobs = await (await fetch('/api/jobs')).json();
+  const cur = jobs.find((j) => ACTIVE.includes(j.status)) || jobs[0];
+  if (cur) jobId = cur.id;
+  tick();
+  setInterval(tick, 1500);
+})();
+
+async function start(type, options) {
+  const r = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, options }) });
+  const j = await r.json();
+  if (!r.ok) { addLine('[ditolak] ' + j.error, 'e'); return; }
+  select(j.id);
+}
+function select(id) {
+  jobId = id; cleared = 0; shown = 0;
+  $('#log').innerHTML = ''; $('#sum').hidden = true;
+  tick();
+}
+$('#goOne').onclick = () => start('portfolio', { companies: [$('#company').value] });
+$('#goAll').onclick = () => start('portfolio', {});
+$('#goAllRaw').onclick = () => start('portfolio', { classify: false, analysis: false });
+$('#goReclass').onclick = () => start('reclassify', {});
+$('#goImages').onclick = () => start('images', {});
+$('#goFin').onclick = () => start('financial', {});
+$('#goAnalysis').onclick = () => start('analysis', {});
+$('#goRescore').onclick = () => start('rescore', {});
+$('#goDedupe').onclick = () => start('dedupe', {});
+$('#resume').onclick = async () => {
+  if (!jobId) return;
+  const r = await fetch('/api/jobs/' + jobId + '/resume', { method: 'POST' });
+  const j = await r.json();
+  if (!r.ok) { addLine('[ditolak] ' + j.error, 'e'); return; }
+  select(j.id);
+};
+$('#cancel').onclick = async () => {
+  if (!jobId) return;
+  $('#cancel').disabled = true; $('#cancel').textContent = 'Menghentikan…';
+  await fetch('/api/jobs/' + jobId + '/cancel', { method: 'POST' });
+};
+$('#clear').onclick = () => { cleared = shown; $('#log').innerHTML = ''; };
+
+// Satu putaran polling: daftar semua job (untuk jalur & chip) + detail job yang dipilih (log).
+let busyTick = false;
+async function tick() {
+  if (busyTick) return;
+  busyTick = true;
+  try {
+    const list = await (await fetch('/api/jobs')).json();
+    activeJobs = list.filter((j) => ACTIVE.includes(j.status));
+    if (!jobId && list[0]) jobId = list[0].id;
+    // Chip: job aktif (titik hijau) + riwayat 8 job terakhir. Job terputus yang bisa dilanjutkan diberi tanda ↻.
+    const STAT = { done: 'selesai', error: 'error', cancelled: 'dihentikan', interrupted: 'terputus' };
+    const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    $('#jobChips').innerHTML = list.slice(0, 8).map((j) => {
+      const act = ACTIVE.includes(j.status);
+      return '<span class="chip ' + (j.id === jobId ? 'on ' : '') + (act ? '' : 'old ') + (j.resumable ? 'rs' : '') + '" data-id="' + esc(j.id) + '" title="' + esc((TITLES[j.type] || j.type) + ' · mulai ' + hhmm(j.createdAt) + (act ? '' : ' · ' + (STAT[j.status] || j.status)) + (j.resumable ? ' · bisa dilanjutkan' : '')) + '"><i></i>'
+        + (j.resumable ? '↻ ' : '') + esc(TITLES[j.type] || j.type) + (j.progress?.companyTotal && act ? ' ' + j.progress.companyIndex + '/' + j.progress.companyTotal : ' · ' + (STAT[j.status] || j.status)) + '</span>';
+    }).join('');
+    document.querySelectorAll('.chip').forEach((c) => (c.onclick = () => select(c.dataset.id)));
+    applyLanes();
+    if (jobId) {
+      const r = await fetch('/api/jobs/' + jobId);
+      if (r.ok) render(await r.json());
+    }
+  } catch { /* coba lagi pada putaran berikutnya */ }
+  busyTick = false;
+}
+
+function addLine(text, cls) {
+  const el = document.createElement('span');
+  el.className = 'l';
+  const m = /^(\d{2}[.:]\d{2}[.:]\d{2})\s+(.*)$/.exec(text);
+  const body = m ? m[2] : text;
+  const c = cls || (/^──/.test(body) ? 'h' : /gagal|error|ditolak/i.test(body) ? 'e' : /^selesai|dibuat|tersimpan|berhasil/i.test(body) ? 'ok' : /jeda|menunggu|pembatalan|tanpa AI/i.test(body) ? 'w' : '');
+  el.innerHTML = '<span class="t">[' + esc((m ? m[1] : '--:--:--').replace(/\./g, ':')) + ']</span> <span class="' + c + '">' + esc(body) + '</span>';
+  const log = $('#log');
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  log.appendChild(el);
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+function render(j) {
+  const active = ACTIVE.includes(j.status);
+  $('#state').className = 'state ' + (active ? 'running' : j.status);
+  $('#stateText').textContent = ({ running: 'BERJALAN · ' + (TITLES[j.type] || j.type).toUpperCase(), waiting: 'MENUNGGU', done: 'SELESAI', error: 'ERROR', cancelled: 'DIHENTIKAN', interrupted: 'TERPUTUS (server mati)' })[j.status] || j.status;
+  if (active && j.cancelRequested) {
+    const st = (j.progress || {}).stage;
+    const step = st === 'ai' ? 'batch AI yang sedang berjalan selesai' : st === 'crawl' ? 'work crawl saat ini selesai' : 'tahap saat ini selesai';
+    $('#stateText').textContent = 'BERJALAN · AKAN BERHENTI setelah ' + step;
+  }
+  $('#cancel').disabled = !active || Boolean(j.cancelRequested);
+  $('#cancel').textContent = active && j.cancelRequested ? 'Menghentikan…' : 'Hentikan';
+  $('#resume').disabled = active || !j.resumable || activeJobs.length > 0 && activeJobs.some((a) => (a.lanes || []).some((l) => (j.lanes || []).includes(l)));
+  $('#resume').title = j.resumable ? 'Lanjutkan dari perusahaan yang belum selesai (' + (j.checkpoint?.done?.length || 0) + '/' + (j.checkpoint?.total || 0) + ' sudah selesai)' : 'Tidak ada job yang bisa dilanjutkan';
+  const logs = j.logs || [];
+  if (logs.length < shown) shown = logs.length;     // buffer log server terpotong
+  for (let i = Math.max(shown, cleared); i < logs.length; i++) addLine(logs[i]);
+  shown = logs.length;
+  const p = j.progress || {};
+  let pct = p.total ? Math.round((p.done / p.total) * 100) : (j.status === 'done' ? 100 : 0);
+  if (p.companyTotal && p.stage !== 'company') pct = Math.round((((p.companyIndex - 1) + (p.total ? Math.min(1, p.done / p.total) : 0)) / p.companyTotal) * 100);
+  $('#barFill').style.width = Math.min(100, j.status === 'done' ? 100 : pct) + '%';
+  const bits = [];
+  if (p.companyTotal) bits.push(p.companyIndex + '/' + p.companyTotal + ' ' + (p.company || '').replace(/^PT\s+/i, ''));
+  if (p.stage && !['done', 'error', 'cancelled', 'company'].includes(p.stage)) bits.push(p.stage + (p.work ? ' ' + p.work : ''));
+  if (active && j.cancelRequested) bits.push('alasan: batch yang sudah berjalan tidak diputus agar token tidak terbuang');
+  $('#stInfo').textContent = bits.join(' · ');
+  const rep = j.reports?.[j.reports.length - 1];
+  if (rep?.perWork?.length) {
+    const cols = Object.keys(rep.perWork[0]).filter((k) => k !== 'ms');
+    $('#sum').hidden = false;
+    $('#sumBody').innerHTML = '<table><thead><tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+      + rep.perWork.map((r) => '<tr>' + cols.map((c) => '<td>' + esc(r[c]) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+  }
+}
+</script>
+</body>
+</html>
