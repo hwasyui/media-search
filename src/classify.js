@@ -1,4 +1,4 @@
-import { credibilityOf, statusLine } from './credibility.js';
+import { credibilityOf } from './credibility.js';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 export const BATCH = 8;          // batch besar (50) membuat output terpotong / JSON rusak; teks per item kini hingga AI_TEXT_MAX, jadi batch dikecilkan
@@ -23,12 +23,12 @@ Untuk SETIAP item tentukan:
 - impact_reason: satu kalimat alasan impact.
 - risk_items (array, boleh kosong): temuan risiko pembiayaan yang tertulis eksplisit tentang entitas/stakeholder (hanya jika company_role "subjek"/"pihak_terlibat"). Tiap elemen {"category","severity","evidence"}:
   category: "hukum" (gugatan, perkara, PKPU/pailit, proses pidana) | "keuangan" (gagal bayar, rugi, utang, likuiditas) | "integritas" (korupsi, penipuan, pencucian uang) | "kepemilikan" (pergantian pengurus/pemegang saham/pengendali, perubahan akta, akuisisi) | "operasional" (PHK, mogok, kecelakaan, penghentian operasi, izin usaha) | "regulasi" (sanksi, denda, pencabutan/pembekuan izin) | "reputasi" (kontroversi, viral negatif, boikot);
-  severity 1-5: 1 = isu ringan/sekadar disebut; 2 = isu atau keluhan publik; 3 = perkara/denda/penurunan kinerja yang nyata; 4 = tersangka/terdakwa, sanksi berat, penghentian operasi, restrukturisasi utang; 5 = pailit/PKPU, gagal bayar, vonis pidana terhadap entitas/pengurus kunci. Rumor atau "diduga" diberi severity lebih rendah dari faktanya;
+  severity 1-5: 1 = isu ringan/sekadar disebut; 2 = isu atau keluhan publik (keluhan satu pengguna/mitra individual MAKSIMAL 2 dan hanya bila perusahaan jelas pihak yang dikeluhkan; jangan menaikkan risiko dari satu cerita); 3 = perkara/denda/penurunan kinerja yang nyata; 4 = tersangka/terdakwa, sanksi berat, penghentian operasi, restrukturisasi utang; 5 = pailit/PKPU, gagal bayar, vonis pidana terhadap entitas/pengurus kunci. Rumor atau "diduga" diberi severity lebih rendah dari faktanya;
   evidence: kutipan PERSIS, salin kata per kata dari teks (maks. 120 karakter), bukan parafrase. Sistem memeriksa kutipan ini ada di teks; item yang kutipannya tidak ditemukan dibuang. Tanpa bukti di teks, jangan tulis itemnya.
 - category: salah satu dari
   "fakta"  = klaim terverifikasi/dilaporkan media kredibel, data resmi, pernyataan resmi bersumber jelas;
   "rumor"  = kabar belum terverifikasi, "katanya/konon/diduga", gosip, spekulasi, sumber anonim;
-  "opini"  = pendapat/keluhan/sentimen pribadi tanpa klaim faktual baru;
+  "opini"  = pendapat/keluhan/sentimen pribadi tanpa klaim faktual baru. Surat pembaca, keluhan/ulasan satu pengguna atau mitra, dan tulisan "buatan pengguna" SELALU "opini" (atau "rumor" bila tuduhannya belum terbukti), bukan "fakta": itu cerita satu pihak, bukan hasil liputan redaksi;
   "tidak_jelas" = informasi terlalu sedikit untuk dinilai.
 - sentiment: "positif" | "netral" | "negatif" terhadap entitas.
 - confidence: angka 0-1.
@@ -343,7 +343,7 @@ Keyword pencarian: ${entity.keyword}`;
     return {
       ...it,
       credibility,
-      ai: { ...ai, impact: ai.impact || null, impact_reason: ai.impact ? ai.impact_reason : null, status_line: statusLine(credibility, ai.category) },
+      ai: { ...ai, impact: ai.impact || null, impact_reason: ai.impact ? ai.impact_reason : null },
     };
   });
 }

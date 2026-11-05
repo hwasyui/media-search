@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS companies (
   ticker        VARCHAR(10) CHARACTER SET ascii NULL,
   sector        VARCHAR(100) NULL,
   aliases       JSON NULL,
+  extra_queries JSON NULL,                 -- query pencarian tambahan (teks bebas, satu per elemen) yang ikut dijalankan saat crawl
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_crawl_at DATETIME NULL,
@@ -34,21 +35,19 @@ CREATE TABLE IF NOT EXISTS news_items (
   id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   company_id       VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   url_hash         BINARY(20) NOT NULL,
-  url              VARCHAR(2048) NOT NULL,
+  found_url        VARCHAR(2048) NOT NULL,       -- alamat saat ditemukan (tautan dari hasil pencarian, mis. Google News); dasar hash duplikat. Baris lama: alamat penerbit
   title            VARCHAR(1000) NOT NULL,
   snippet          TEXT NULL,
   source_name      VARCHAR(255) NULL,
   source_key       VARCHAR(40) CHARACTER SET ascii NULL,
   keyword          VARCHAR(255) NULL,
-  modifier         VARCHAR(40) CHARACTER SET ascii NULL,
   published_at     DATETIME NULL,
   fetched_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   sort_at          DATETIME AS (COALESCE(published_at, fetched_at)) STORED,
-  credibility_tier ENUM('official','mainstream','social_forum') NULL,
+  credibility_tier ENUM('official','mainstream','corporate','aggregator','social_forum') NULL,
   credibility_score TINYINT UNSIGNED NULL,
   impact           ENUM('baik','buruk','netral') NULL,
   impact_reason    VARCHAR(500) NULL,
-  status_line      VARCHAR(500) NULL,
   ai_status        ENUM('ok','failed','skipped') NOT NULL DEFAULT 'skipped',
   ai_error         VARCHAR(500) NULL,
   relevant         TINYINT(1) NULL,
@@ -74,12 +73,24 @@ CREATE TABLE IF NOT EXISTS news_items (
   content_checked  TINYINT(1) NOT NULL DEFAULT 0,
   article_url      VARCHAR(2048) NULL,
   link_error       VARCHAR(40) CHARACTER SET ascii NULL,
+  -- Lapis data (dihitung otomatis dari kolom lain, tidak perlu diisi): 0 = MENTAH (alamat penerbit belum ada / konten konsumen),
+  -- 1 = CLEANED (alamat penerbit valid, bukan konten konsumen), 2 = RELEVAN (cleaned + AI menilai relevan dengan format penilaian baru (peran perusahaan terisi), atau belum dinilai AI tetapi teksnya menyebut nama perusahaan; DAN isinya cukup untuk dinilai:
+  -- berita/resmi/blog minimal 500 karakter teks, caption sosmed/video/persepsi publik minimal 80 karakter)
+  stage            TINYINT UNSIGNED GENERATED ALWAYS AS (CASE
+    WHEN content_kind = 'konsumen' THEN 0
+    WHEN COALESCE(article_url, found_url) LIKE 'https://news.google.com/%' THEN 0
+    WHEN COALESCE(article_url, found_url) LIKE 'https://www.google.com/search%' OR COALESCE(article_url, found_url) LIKE 'https://google.com/search%' THEN 0
+    WHEN ((ai_status = 'ok' AND company_role IS NOT NULL AND relevant = 1) OR (ai_status <> 'ok' AND related = 1 AND related_via = 'perusahaan'))
+      AND CHAR_LENGTH(REGEXP_REPLACE(COALESCE(content_html, ''), '<[^>]*>', '')) >= (CASE WHEN platform IN ('video', 'sosmed') OR content_kind = 'persepsi_publik' THEN 80 ELSE 500 END) THEN 2
+    ELSE 1 END) STORED,
   ai_summary       TEXT NULL,
   company_role     VARCHAR(16) CHARACTER SET ascii NULL,
   source_domain    VARCHAR(255) CHARACTER SET ascii NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_company_url (company_id, url_hash),
   KEY ix_company_sort (company_id, sort_at),
+  KEY ix_company_stage (company_id, stage, sort_at),
+  KEY ix_stage_sort (stage, sort_at),
   KEY ix_sort (sort_at),
   KEY ix_relevant_sort (relevant, sort_at),
   KEY ix_tier_sort (credibility_tier, sort_at),
@@ -88,6 +99,8 @@ CREATE TABLE IF NOT EXISTS news_items (
   KEY ix_aistatus (ai_status),
   KEY ix_platform_sort (platform, sort_at),
   KEY ix_kind_sort (content_kind, sort_at),
+  KEY ix_article (article_url(191)),
+  KEY ix_title (title_hash),
   KEY ix_company_title (company_id, title_hash),
   KEY ix_company_related (company_id, related, sort_at),
   KEY ix_company_risk (company_id, risk_level, sort_at),
@@ -228,37 +241,56 @@ CREATE TABLE IF NOT EXISTS risk_profiles (
   CONSTRAINT fk_risk_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
--- DATA CLEANED: hanya berita yang benar-benar terkait perusahaan/pemangku kepentingannya (related = 1) dan tidak dinilai AI
--- sebagai tidak relevan (berita yang hanya menyebut stakeholder wajib dikonfirmasi AI), dan bukan konten tutorial/promo konsumen. VIEW (bukan salinan) supaya selalu sinkron dengan news_items (data mentah). Dipakai website & analisis.
+-- Media lain yang memuat berita yang sama (duplikat yang ditolak atau digantikan saat simpan): hanya SATU yang disimpan di news_items, sisanya dicatat di sini.
+-- Dihapus otomatis bersama beritanya (ON DELETE CASCADE). Tampil di modal berita sebagai "Juga dimuat di N media" dan chip "+N media" di kartu.
+CREATE TABLE IF NOT EXISTS news_also (
+  id        BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  news_id   BIGINT UNSIGNED NOT NULL,
+  url_hash  BINARY(20) NOT NULL,
+  domain    VARCHAR(255) CHARACTER SET ascii NULL,
+  url       VARCHAR(2048) NOT NULL,
+  title     VARCHAR(1000) NULL,
+  tier      VARCHAR(20) CHARACTER SET ascii NULL,
+  score     TINYINT UNSIGNED NULL,
+  seen_at   DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_news_url (news_id, url_hash),
+  KEY ix_news_tier (news_id, score),
+  CONSTRAINT fk_also_news FOREIGN KEY (news_id) REFERENCES news_items(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- Isi halaman Bantuan (public/help.html) per bagian, dibaca asisten AI lewat alat MCP bantuan_aplikasi (user mcp_ro hanya SELECT).
+-- Diisi/diperbarui oleh `node --env-file=.env scripts/db-add-help.js` (jalankan ulang setiap habis mengedit Bantuan); help.html tetap satu-satunya sumber.
+CREATE TABLE IF NOT EXISTS app_help (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  anchor     VARCHAR(40) CHARACTER SET ascii NOT NULL,
+  title      VARCHAR(200) NOT NULL,
+  content    TEXT NOT NULL,
+  sort_no    INT UNSIGNED NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_sort (sort_no)
+) ENGINE=InnoDB;
+
+-- LAPIS DATA BERITA (semuanya dari satu tabel news_items; kolom stage dihitung otomatis dan diindeks, jadi view murah):
+--   MENTAH   = news_items (stage 0, 1, 2)       semua hasil crawl, termasuk yang alamat penerbitnya belum ketemu
+--   CLEANED  = news_cleaned (stage >= 1)         alamat penerbit valid dan bukan konten konsumen
+--   RELEVAN  = news_relevant (stage = 2)         cleaned + AI menilai relevan (atau, sementara, belum dinilai AI tetapi teksnya menyebut nama perusahaan) DAN isinya cukup panjang (500 karakter berita, 80 karakter caption sosmed/video). Dipakai aplikasi.
 CREATE OR REPLACE VIEW news_cleaned AS
-SELECT * FROM news_items
-WHERE content_kind <> 'konsumen' AND (
-  (ai_status = 'ok' AND relevant = 1)                                      -- sudah dinilai AI: AI yang menentukan relevansi (dari isi artikel), termasuk berita yang hanya menyebut pemangku kepentingan
-  OR (ai_status <> 'ok' AND related = 1 AND related_via = 'perusahaan')    -- belum dinilai AI: tampil sementara bila teks (judul+isi) menyebut nama/alias perusahaan; ditandai "belum dinilai AI" di UI
-);
+SELECT * FROM news_items WHERE stage >= 1;
+
+CREATE OR REPLACE VIEW news_relevant AS
+SELECT * FROM news_items WHERE stage = 2;
 
 -- View untuk chatbot/BI: satu baris per perusahaan dengan rating risiko terbaru, analisis AI terbaru, dan hitungan berita 30 hari (cleaned).
 CREATE OR REPLACE VIEW v_company_overview AS
 SELECT c.id AS company_id, c.name, c.type, c.ticker, c.sector, c.last_crawl_at,
   rp.score AS risk_score, rp.rating AS risk_rating, rp.computed_at AS risk_computed_at, rp.categories AS risk_categories,
   an.headline AS ai_headline, an.rating_risiko AS ai_risk_rating, an.kondisi AS ai_condition, an.generated_at AS ai_generated_at,
-  (SELECT COUNT(*) FROM news_cleaned n WHERE n.company_id = c.id AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY) AS news_30d,
-  (SELECT COUNT(*) FROM news_cleaned n WHERE n.company_id = c.id AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY AND n.risk_level >= 3) AS risk_news_30d,
+  (SELECT COUNT(*) FROM news_relevant n WHERE n.company_id = c.id AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY) AS news_30d,
+  (SELECT COUNT(*) FROM news_relevant n WHERE n.company_id = c.id AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY AND n.risk_level >= 3) AS risk_news_30d,
   (SELECT COUNT(*) FROM news_items n WHERE n.company_id = c.id) AS raw_total
 FROM companies c
 LEFT JOIN risk_profiles rp ON rp.id = (SELECT MAX(id) FROM risk_profiles WHERE company_id = c.id)
 LEFT JOIN company_analyses an ON an.id = (SELECT MAX(id) FROM company_analyses WHERE company_id = c.id);
 
--- Berita datar (cleaned) dengan nama perusahaan dan sinyal yang mudah dibaca.
-CREATE OR REPLACE VIEW v_news AS
-SELECT n.id, n.company_id, c.name AS company_name, c.ticker, n.title, n.snippet, n.url, n.source_name, n.source_domain, n.sort_at AS published_at,
-  n.related_via, n.credibility_tier, n.impact, n.impact_reason, n.category, n.sentiment, n.confidence, n.relevant, n.reason AS ai_reason, n.topic,
-  n.risk_level, n.risk_tags, n.ai_status
-FROM news_cleaned n JOIN companies c ON c.id = n.company_id;
-
--- Sama seperti v_news tetapi DATA MENTAH (semua hasil crawl, termasuk yang tidak terkait). Pakai hanya bila perlu menelusuri data asli.
-CREATE OR REPLACE VIEW v_news_raw AS
-SELECT n.id, n.company_id, c.name AS company_name, c.ticker, n.title, n.snippet, n.url, n.source_name, n.source_domain, n.sort_at AS published_at,
-  n.related, n.related_via, n.credibility_tier, n.impact, n.impact_reason, n.category, n.sentiment, n.confidence, n.relevant, n.reason AS ai_reason, n.topic,
-  n.risk_level, n.risk_tags, n.ai_status
-FROM news_items n JOIN companies c ON c.id = n.company_id;

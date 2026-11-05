@@ -73,7 +73,7 @@ async function tabDossier() {
       <div class="dz-start">
         <div class="eyebrow" style="color:var(--cyan)">DOSSIER KORPORASI</div>
         <h3>Dossier belum dibuat</h3>
-        <p>AI membaca isi berita yang sudah tersimpan dan menyusun empat bagian kunci untuk due diligence. Setiap poin wajib punya rujukan berita dan kutipan asli; yang tidak ada di berita tidak diisi.</p>
+        <p>AI membaca isi berita yang sudah tersimpan dan menyusun empat bagian kunci untuk due diligence. Setiap poin wajib punya rujukan berita (poin tanpa rujukan yang valid dibuang). AI juga diminta menyertakan kutipan persis dari berita, tetapi kutipan di dossier belum dicek otomatis ke teks artikel, jadi bacalah beritanya.</p>
         <div class="dz-parts">${DZ_SECTIONS.map((s) => `<span><i class="dz-mi">${s.icon}</i>${esc(s.title)}</span>`).join('')}</div>
         <button class="btn wht" id="btnExtractDossier" style="padding:11px 24px;font-weight:700">Buat dossier dari berita</button>
       </div>`;
@@ -92,13 +92,13 @@ function renderDossierView(d, c) {
   const genDate = d.generated_at ? new Date(d.generated_at).toLocaleString('id-ID') : '-';
 
   const status = (st) => (st === 'terverifikasi_dokumen'
-    ? '<span class="tag t-green" title="Terverifikasi dokumen::Berasal dari dokumen resmi (akta, keterbukaan bursa, atau profil resmi), bukan sekadar berita.">✓ Terverifikasi dokumen</span>'
+    ? '<span class="tag t-green" title="Mengutip dokumen::Berita menyebut temuan ini bersumber dari dokumen resmi (akta atau keterbukaan bursa). Ini penilaian AI dari isi berita: aplikasi belum memiliki atau memeriksa dokumennya, jadi tetap cocokkan dengan dokumen aslinya.">Mengutip dokumen (belum dicek)</span>'
     : '<span class="tag t-amber" title="Dari berita, belum diverifikasi::Diekstrak dari isi berita. Cocokkan dengan dokumen asli (akta, AHU, SLIK) sebelum dipakai.">Dari berita · belum diverifikasi</span>');
 
   // Chip sumber: nomor berita + nama media; klik membuka modal beritanya
   const source = (it) => {
     const r = it.ref_n ? refBy.get(it.ref_n) : null;
-    if (!r && !it.url) return `<span class="dz-src none" title="Sumber::Berasal dari profil perusahaan yang diisi manual, bukan dari berita.">${esc(it.dasar || 'Profil perusahaan')}</span>`;
+    if (!r && !it.url) return `<span class="dz-src none" title="Sumber::Rujukan berita tidak tersedia.">${esc(it.dasar || 'Tanpa rujukan')}</span>`;
     const url = (r && r.url) || it.url, nid = r && r.id;
     const name = (r && r.source) || it.source_name || 'Sumber';
     const tip = (r ? r.title : name) + '::' + [name, r && r.date].filter(Boolean).join(' · ') + ' — klik untuk membuka beritanya.';
@@ -110,7 +110,7 @@ function renderDossierView(d, c) {
     return `<div class="dz-it">
       <div class="dz-t">${esc(m.title || '-')}</div>
       <div class="dz-sub">${m.role ? `<span class="dz-pill role">${esc(m.role)}</span>` : ''}${m.date ? `<span class="dz-pill date">${esc(m.date)}</span>` : ''}${m.text ? `<span>${esc(m.text)}</span>` : ''}${m.value ? `<span class="dz-pill" title="${esc(m.valueLabel)}::Angka seperti yang tertulis di berita; belum dicek ke dokumen.">${esc(m.valueLabel)} ${esc(m.value)}</span>` : ''}</div>
-      ${it.kutipan_asli ? `<blockquote class="dz-q" title="Kutipan asli dari berita::Klik untuk membuka/menutup seluruh kutipan.">“${esc(it.kutipan_asli)}”</blockquote>` : ''}
+      ${it.kutipan_asli ? `<blockquote class="dz-q" title="Kutipan dari berita (ditulis AI, belum dicek otomatis)::Klik untuk membuka/menutup seluruh kutipan.">“${esc(it.kutipan_asli)}”</blockquote>` : ''}
       <div class="dz-f">${status(it.status_verifikasi)}${source(it)}</div>
     </div>`;
   };
@@ -140,18 +140,18 @@ function renderDossierView(d, c) {
         <div class="eyebrow" style="color:var(--cyan);margin-bottom:4px">DOSSIER KORPORASI · DUE DILIGENCE</div>
         <h3>Struktur, klien, akta, dan fasilitas bank</h3>
         <p>${esc(d.ringkasan || '')}</p>
-        <div class="dz-meta">Diperbarui ${esc(genDate)} · disusun dari ${stats.news_analyzed || refs.length} berita dan profil perusahaan</div>
+        <div class="dz-meta">Diperbarui ${esc(genDate)} · disusun dari ${stats.news_analyzed || refs.length} berita</div>
       </div>
       <div class="dz-kpis">
         <div class="dz-kpi"><small>Total temuan</small><b>${stats.total_items}</b></div>
-        <div class="dz-kpi" title="Terverifikasi dokumen::Temuan yang berasal dari dokumen resmi."><small>Terverifikasi</small><b style="color:var(--green)">${stats.verified_count}</b></div>
+        <div class="dz-kpi" title="Mengutip dokumen::Temuan yang menurut AI bersumber dari dokumen resmi yang dikutip berita. Dokumennya belum diperiksa aplikasi."><small>Mengutip dokumen</small><b style="color:var(--green)">${stats.verified_count}</b></div>
         <div class="dz-kpi" title="Dari berita::Temuan dari isi berita yang masih perlu dicocokkan dengan dokumen asli."><small>Dari berita</small><b style="color:var(--amber)">${stats.unverified_count}</b></div>
         <button class="btn wht" id="btnExtractDossier" style="align-self:center">⟳ Buat ulang</button>
       </div>
     </div>
     <div class="dz-legend">
       <span>${status('terverifikasi_dokumen')}</span><span>${status('dari_berita')}</span>
-      <span>Setiap poin menyertakan <b style="color:var(--text)">kutipan asli</b> dan <b style="color:var(--text)">nomor berita</b> yang bisa diklik. Yang tidak ditemukan di berita dibiarkan kosong, tidak diisi tebakan.</span>
+      <span>Setiap poin menyertakan <b style="color:var(--text)">kutipan</b> (ditulis AI, belum dicek otomatis) dan <b style="color:var(--text)">nomor berita</b> yang bisa diklik. Poin tanpa rujukan berita yang valid dibuang.</span>
     </div>
     <div class="dz-grid">${DZ_SECTIONS.map(card).join('')}</div>
     ${refsHtml}`;

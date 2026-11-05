@@ -28,7 +28,18 @@ const TIMEOUT = 20000;
 const CACHE_MS = 10 * 60 * 1000;
 const cache = new Map();
 
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+const RETRY_429 = [1500, 4000];                  // jeda (ms) sebelum percobaan ulang bila Yahoo membalas 429
 async function getJson(url, headers = {}, ua = getRandomUa()) {
+  for (let n = 0; ; n++) {
+    try { return await getJsonOnce(url, headers, ua); }
+    catch (e) {
+      if (!/HTTP 429/.test(String(e?.message)) || n >= RETRY_429.length) throw e;
+      await sleep(RETRY_429[n]);
+    }
+  }
+}
+async function getJsonOnce(url, headers = {}, ua = getRandomUa()) {
   const res = await fetch(url, {
     headers: {
       'User-Agent': ua,
@@ -253,11 +264,16 @@ export function financialSignals(d) {
 }
 
 // ---- Gabungan ----
+// Ticker yang baru kena 429: dalam 3 menit tidak dipanggil lagi ke Yahoo (hasil gagal terakhir dikembalikan; pemanggil tidak menyimpannya).
+const COOLDOWN_429_MS = 3 * 60 * 1000;
+const lastFail = new Map();                      // ticker -> { at, data }
 export async function getFinancials(ticker, { force = false } = {}) {
   const t = String(ticker || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{2,6}$/.test(t)) throw Object.assign(new Error('ticker tidak valid'), { status: 400 });
   const hit = cache.get(t);
   if (!force && hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+  const lf = lastFail.get(t);
+  if (lf && Date.now() - lf.at < COOLDOWN_429_MS) return lf.data;
 
   const sym = `${t}.JK`;
   const s = await yahooSession().catch(() => null);
@@ -274,6 +290,7 @@ export async function getFinancials(ticker, { force = false } = {}) {
   }));
   if (!data.price && !data.fundamentals) throw new Error(`Tidak ada data untuk ${t}: ${Object.values(data.errors).join('; ')}`);
   data.signals = financialSignals(data);
+  if (Object.values(data.errors).some((e) => /429/.test(String(e)))) lastFail.set(t, { at: Date.now(), data }); else lastFail.delete(t);
   if (!data.errors.price && !data.errors.valuation) cache.set(t, { at: Date.now(), data });   // jangan menyimpan hasil yang gagal (mis. 429) di cache
   return data;
 }

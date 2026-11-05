@@ -31,11 +31,18 @@ const list = (v) => (Array.isArray(v) ? v.map((s) => String(s).trim()).filter(Bo
 export async function resolveTargets(args) {
   const companies = await listCompanies();
   let keywords = list(args.keywords);
+  const anchors = {};          // pemangku kepentingan -> nama perusahaan yang wajib ikut di query
   let entity = null;
   if (args.company) {
     entity = companies.find((c) => c.id === args.company);
     if (!entity) throw new Error(`company "${args.company}" tidak ada. Pilihan: ${companies.map((c) => c.id).join(', ')}`);
-    keywords = [...new Set([entity.name, ...(entity.aliases || []), ...(entity.stakeholders || []).map((s) => s.name)])];
+    const own = new Set([entity.name, ...(entity.aliases || [])].map((x) => x.toLowerCase()));
+    const stk = (entity.stakeholders || []).map((s) => s.name).filter((n) => !own.has(n.toLowerCase()));
+    keywords = [...new Set([entity.name, ...(entity.aliases || []), ...stk])];
+    // Pemangku kepentingan dicari BERSAMA nama perusahaan (salah satu dari: alias, ticker, nama resmi tanpa PT/Tbk/Persero): hasil harus tentang hubungannya dengan perusahaan ini.
+    const short = entity.name.replace(/\b(PT|CV|Tbk|Persero)\b|[()]/gi, ' ').replace(/\s+/g, ' ').trim();
+    const anchor = [...new Set([...(entity.aliases || []), entity.ticker, short].filter((x) => x && x.length >= 3 && x !== entity.name))].slice(0, 5);
+    for (const n of stk) anchors[n] = anchor;
   }
   if (!keywords.length) throw new Error('Isi --company <id> atau --keywords "a,b,c"');
   if (!entity) entity = { name: keywords[0], aliases: keywords.slice(1), sector: '-', stakeholders: [] };
@@ -48,20 +55,22 @@ export async function resolveTargets(args) {
   const modifiers = list(args.modifiers).length ? list(args.modifiers) : ['none'];
   const badMod = modifiers.filter((m) => !MODIFIERS[m]);
   if (badMod.length) throw new Error(`modifier tidak dikenal: ${badMod.join(', ')}. Pilihan: ${Object.keys(MODIFIERS).join(', ')}`);
-  return { keywords, sources, modifiers, entity };
+  return { keywords, sources, modifiers, entity, anchors, extraQueries: args.company ? (entity.extraQueries || []) : [] };
 }
 
 // Modifier topik khusus (akta, klien, kredit, hukum) hanya bermakna untuk pencarian berita; YouTube dan media sosial tidak diberi query itu.
 const NEWS_ONLY_MODS = new Set(['deed', 'klien', 'kredit', 'hukum']);
 const NEWS_SOURCES = new Set(['google_news', 'bing_news']);
 
-export function buildJobs(keywords, sources, modifiers = ['none']) {
+export function buildJobs(keywords, sources, modifiers = ['none'], anchors = {}, extraQueries = []) {
   const jobs = [];
+  // Query tambahan dari analis dipakai apa adanya (tanpa modifier) di tiap sumber
+  for (const q of extraQueries) for (const source of sources) jobs.push({ keyword: q, source, modifier: 'none', q });
   for (const keyword of keywords)
     for (const source of sources)
       for (const modifier of modifiers) {
         if (NEWS_ONLY_MODS.has(modifier) && !NEWS_SOURCES.has(source)) continue;
-        jobs.push({ keyword, source, modifier, q: buildQuery(keyword, modifier) });
+        jobs.push({ keyword, source, modifier, q: buildQuery(keyword, modifier, anchors[keyword]) });
       }
   return jobs;
 }

@@ -5,8 +5,7 @@
 //   4. Fasilitas Bank & Pembiayaan (Sindikasi, Plafon Pinjaman, Obligasi)
 // Sumber:
 //   - Berita lengkap tersimpan (content_html & snippet) dengan nomor rujukan [n] dan kutipan asli
-//   - Data pemangku kepentingan / akta profil perusahaan
-//   - Dokumen verifikasi debitur
+// (HANYA berita: data profil/pemangku kepentingan yang diisi manual TIDAK dipakai, supaya semua perusahaan dinilai dengan dasar yang sama.)
 // Anti-Halusinasi: Setiap item wajib memiliki nomor rujukan berita [n] dan kutipan asli;
 // jika data tidak ditemukan di teks berita, bagian tersebut ditandai "butuh verifikasi akta/AHU", bukan karangan AI.
 
@@ -17,7 +16,7 @@ import { extractContentFromUrl, htmlToText } from './extractor.js';
 import { getRandomUa } from './financial.js';
 import { saveNews } from './save.js';
 
-const SYSTEM = `Kamu analis due diligence korporasi dan risiko kredit debitur. Dari DATA BERITA LENGKAP dan PROFIL PEMANGKU KEPENTINGAN yang diberikan, tugasmu adalah mengekstrak DOSSIER KORPORASI 4-BAGIAN secara faktual, ketat, dan tanpa asumsi:
+const SYSTEM = `Kamu analis due diligence korporasi dan risiko kredit debitur. Dari DATA BERITA LENGKAP yang diberikan, tugasmu adalah mengekstrak DOSSIER KORPORASI 4-BAGIAN secara faktual, ketat, dan tanpa asumsi:
 
 1. PEMILIK MANFAAT & PENGENDALI (UBO & PSP):
    - Pemegang saham mayoritas/pengendali (PSP), pemilik manfaat akhir (UBO), konsorsium pemegang saham, atau persentase saham signifikan (>5%).
@@ -74,14 +73,13 @@ export async function saveCompanyDossier(companyId, dossier) {
 }
 
 export async function generateCompanyDossier(companyId, { signal } = {}) {
-  // 1. Ambil profil perusahaan & pemangku kepentingan terdaftar di database
+  // 1. Ambil profil dasar perusahaan (nama/ticker/sektor untuk konteks). Data pemangku kepentingan sengaja TIDAK dipakai: dossier murni dari berita.
   const [[co]] = await db().query('SELECT id, name, type, ticker, sector, aliases FROM companies WHERE id = ?', [companyId]);
   if (!co) throw new Error('Perusahaan tidak ditemukan: ' + companyId);
-  const [stakeholders] = await db().query('SELECT name, role FROM stakeholders WHERE company_id = ? ORDER BY id ASC', [companyId]);
 
   // 2. Ambil berita-berita paling relevan dengan materi dossier (kepemilikan, akta/akuisisi, klien/proyek, kredit/utang)
   let [rows] = await db().query(
-    `SELECT id, title, snippet, content_html, source_name, source_domain, published_at, category, company_role, url,
+    `SELECT id, title, snippet, content_html, source_name, source_domain, published_at, category, company_role, COALESCE(article_url, found_url) AS url,
        (
          (title LIKE '%saham%' OR snippet LIKE '%saham%' OR content_html LIKE '%saham%') +
          (title LIKE '%kredit%' OR snippet LIKE '%kredit%' OR content_html LIKE '%kredit%' OR title LIKE '%pinjaman%' OR snippet LIKE '%pinjaman%' OR title LIKE '%obligasi%') +
@@ -142,14 +140,14 @@ export async function generateCompanyDossier(companyId, { signal } = {}) {
         }
         await saveNews(companyId, toSave);
         const [freshRows] = await db().query(
-          `SELECT id, title, snippet, content_html, source_name, source_domain, published_at, category, company_role, url
+          `SELECT id, title, snippet, content_html, source_name, source_domain, published_at, category, company_role, COALESCE(article_url, found_url) AS url
            FROM news_items WHERE company_id = ? ORDER BY id DESC LIMIT 15`,
           [companyId],
         );
         if (freshRows.length) rows = freshRows;
       }
     } catch {
-      // Fail gracefully: lanjutkan ekstraksi dengan data profil bila internet offline
+      // Fail gracefully: lanjutkan dengan berita yang sudah ada bila internet offline
     }
   }
 
@@ -188,8 +186,6 @@ export async function generateCompanyDossier(companyId, { signal } = {}) {
   const refMap = new Map(refs.map((r) => [r.n, r]));
   const userPrompt = `PERUSAHAAN: ${co.name} (${co.type === 'public' ? `emiten, ticker ${co.ticker}` : 'perusahaan tertutup'}), sektor: ${co.sector || '-'}.
 ALIAS PERUSAHAAN: ${(co.aliases || []).join(', ') || '-'}
-PEMANGKU KEPENTINGAN TERDAFTAR DI DATABASE / AKTA:
-${stakeholders.map((s) => `- ${s.name} (${s.role || 'pengurus/pemegang saham'})`).join('\n') || '(belum ada data stakeholder terdaftar)'}
 
 DATA BERITA LENGKAP (nomor [n] untuk rujukan wajib):
 ${JSON.stringify(newsPayload, null, 2)}`;
@@ -205,8 +201,8 @@ ${JSON.stringify(newsPayload, null, 2)}`;
         const dasar = String(it.dasar || '');
         const nums = [...dasar.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
         const validRefs = nums.map((n) => refMap.get(n)).filter(Boolean);
-        if (!validRefs.length && it.status_verifikasi !== 'terverifikasi_dokumen') {
-          return null; // Tolak item tanpa rujukan berita yang valid
+        if (!validRefs.length) {
+          return null; // Tolak item tanpa rujukan berita yang valid (klaim "terverifikasi dokumen" dari AI tidak membebaskan dari syarat ini)
         }
         const primeRef = validRefs[0] || null;
         return {
@@ -228,25 +224,6 @@ ${JSON.stringify(newsPayload, null, 2)}`;
   const klien = validateAndEnrich(out.klien_proyek, 'klien');
   const akta = validateAndEnrich(out.akta_korporasi, 'akta');
   const fasilitas = validateAndEnrich(out.fasilitas_bank, 'fasilitas');
-
-  // Integrasikan pemangku kepentingan database profil ke dalam pemilik_manfaat jika belum ada
-  for (const st of stakeholders) {
-    const exists = pemilik.some((p) => p.nama && p.nama.toLowerCase().includes(st.name.toLowerCase()));
-    if (!exists) {
-      pemilik.unshift({
-        nama: st.name,
-        peran_atau_porsi: st.role || 'Pemangku Kepentingan Terdaftar (Akta/FAP)',
-        dasar: 'Database Profil',
-        kutipan_asli: `Terdaftar sebagai ${st.role || 'pengurus'} di profil perusahaan.`,
-        status_verifikasi: 'terverifikasi_dokumen',
-        ref_n: null,
-        news_id: null,
-        url: null,
-        source_name: 'Profil / Akta FAP',
-        published_at: null,
-      });
-    }
-  }
 
   // Hitung status ketersediaan & statistik
   const totalItems = pemilik.length + klien.length + akta.length + fasilitas.length;

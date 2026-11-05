@@ -33,6 +33,7 @@ async function tabRisiko() {
     f.severity ? '<span class="tag ' + (f.severity >= 4 ? 't-red' : f.severity >= 3 ? 't-amber' : 't-gray') + '" title="' + esc((LEVEL_TIP[f.severity] || '') + ' Dinilai AI dari isi artikel; tetap verifikasi ke sumbernya.') + '">tingkat ' + f.severity + '/5</span>' + (f.hit ? '<span class="sm dim" style="flex-basis:100%">“' + esc(f.hit) + '”</span>' : '') : '',
     f.rumor ? '<span class="tag t-amber" title="Dinilai AI sebagai rumor/belum terverifikasi">rumor</span>' : '',
     f.tier === 'official' ? '<span class="tag t-green">sumber resmi</span>' : '',
+    f.unverified ? '<span class="tag t-amber" title="Kategori ini baru didukung sumber non-kredibel (medsos/forum/agregator/situs perusahaan) sehingga kontribusinya ke skor dibatasi sampai ada media atau sumber resmi yang memuatnya.">belum ada sumber kredibel</span>' : '',
     f.finance ? '' : (f.direct ? '' : '<span class="tag t-violet" title="Judul tidak menyebut nama perusahaan; bisa menyangkut pihak lain atau hubungan tidak langsung. Periksa sebelum dipakai.">periksa keterkaitan</span>'),
   ].join('');
   const factorHtml = (f) => {
@@ -116,6 +117,32 @@ function openAddCompany() {
   $('#acName').focus();
 }
 function closeAddCompany() { $('#acModal').hidden = true; }
+
+// Ubah alias & query tambahan perusahaan yang sedang dibuka (tab Profil)
+function openEditSearch() {
+  const c = CS.data?.company; if (!c) return;
+  $('#qeFor').textContent = c.name;
+  $('#qeAlias').value = (c.aliases || []).join(', ');
+  $('#qeExtra').value = (c.extraQueries || []).join('\n');
+  $('#qeModal').hidden = false;
+  $('#qeAlias').focus();
+}
+async function submitEditSearch(ev) {
+  ev.preventDefault();
+  const c = CS.data?.company; if (!c) return;
+  const btn = $('#qeSubmit'); btn.disabled = true;
+  try {
+    await api('/api/companies/' + encodeURIComponent(c.id), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliases: $('#qeAlias').value.split(',').map((s) => s.trim()).filter(Boolean), extraQueries: $('#qeExtra').value.split('\n').map((l) => l.trim()).filter(Boolean) }),
+    });
+    $('#qeModal').hidden = true;
+    await loadPortfolio();
+    await viewCompany(c.id);
+    toast('Pencarian diperbarui. Berlaku untuk crawl berikutnya.');
+  } catch (e) { toast('Gagal menyimpan: ' + e.message, 7000); }
+  finally { btn.disabled = false; }
+}
 async function submitAddCompany(ev) {
   ev.preventDefault();
   const name = $('#acName').value.trim();
@@ -126,11 +153,12 @@ async function submitAddCompany(ev) {
   }).filter((s) => s.name);
   const aliases = $('#acAlias').value.split(',').map((s) => s.trim()).filter(Boolean);
   const ticker = $('#acTicker').value.trim().toUpperCase();
+  const extraQueries = $('#acExtra').value.split('\n').map((l) => l.trim()).filter(Boolean);
   const btn = $('#acSubmit'); btn.disabled = true;
   try {
     const { company } = await api('/api/companies', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, type: ticker ? 'public' : 'private', ticker: ticker || undefined, sector: $('#acSector').value.trim() || undefined, aliases: aliases.length ? [name.replace(/^PT\s+/i, ''), ...aliases] : undefined, stakeholders }),
+      body: JSON.stringify({ name, type: ticker ? 'public' : 'private', ticker: ticker || undefined, sector: $('#acSector').value.trim() || undefined, aliases: aliases.length ? [name.replace(/^PT\s+/i, ''), ...aliases] : undefined, extraQueries, stakeholders }),
     });
     closeAddCompany();
     $('#acForm').reset();

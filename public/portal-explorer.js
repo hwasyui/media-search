@@ -95,15 +95,21 @@ async function renderExplorer(opts) {
     + (act.length ? '<div class="active">' + act.map(([k, t]) => '<button type="button" class="achip" data-x="' + k + '" title="Lepas filter">' + esc(t) + ' <b>✕</b></button>').join('') + '<button type="button" class="alink" id="freset">Reset semua</button></div>' : '');
 
   const cards = (arr) => arr.map((r) => newsCard(r, { showCompany: !company })).join('');
-  const showLead = opts.lead && st.sort === 'mix' && !st.q && !nFilters && !st.company && items.length >= 5;
+  // Berita utama harus berita REDAKSI: media massa/sumber resmi, sudah dinilai AI, dan perusahaan jadi subjeknya. Tulisan buatan pengguna (surat pembaca,
+  // keluhan konsumen, blog/forum), video, dan berita yang hanya menyebut sekilas tidak boleh jadi berita utama (tetap muncul di daftar biasa).
+  const editorial = (r) => (r.content_kind === 'berita' || r.content_kind === 'resmi') && r.platform !== 'blog' && (r.credibility_tier === 'official' || r.credibility_tier === 'mainstream')
+    && r.ai_status === 'ok' && (r.company_role === 'subjek' || r.company_role === 'pihak_terlibat');
+  const leadAt = items.findIndex((r) => editorial(r) && r.company_role === 'subjek');
+  const showLead = opts.lead && st.sort === 'mix' && !st.q && !nFilters && !st.company && items.length >= 5 && leadAt >= 0;
   let list;
   if (!items.length) {
     list = '<div class="empty"><b>Tidak ada berita yang cocok</b>' + (act.length ? 'Filter terlalu ketat atau belum ada data untuk pilihan ini.<div style="margin-top:12px"><button class="btn" id="freset2" type="button">Reset semua filter</button></div>'
       : 'Belum ada berita tersimpan. Jalankan crawl di Task Runner.') + '</div>';
   } else if (showLead) {
-    const [lead, ...rest] = items;
-    list = '<div class="lead">' + leadCard(lead) + '<div class="lead-side"><div class="eyebrow" style="margin:2px 0 0">PILIHAN REDAKSI</div>' + rest.slice(0, 4).map(sideRow).join('') + '</div></div>'
-      + '<div class="grid" id="fgrid">' + cards(rest.slice(4)) + '</div>';
+    const lead = items[leadAt], rest = items.filter((_, i) => i !== leadAt);
+    const side = rest.filter(editorial).slice(0, 4), sideSet = new Set(side), others = rest.filter((r) => !sideSet.has(r));
+    list = '<div class="lead">' + leadCard(lead) + '<div class="lead-side"><div class="eyebrow" style="margin:2px 0 0">PILIHAN REDAKSI</div>' + side.map(sideRow).join('') + '</div></div>'
+      + '<div class="grid" id="fgrid">' + cards(others) + '</div>';
   } else {
     list = '<div class="grid" id="fgrid">' + cards(items) + '</div>';
   }

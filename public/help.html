@@ -80,12 +80,12 @@
   <div class="flow">
     <div class="fb ext"><b>1. Cari berita</b>Google News, Bing, YouTube, media sosial. Untuk emiten juga harga dan laporan keuangan.<span class="tag t-ext">Luar</span></div><div class="ar">→</div>
     <div class="fb rule"><b>2. Saring</b>Buang duplikat, nilai jenis sumber dari domain, cocokkan nama perusahaan.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
-    <div class="fb rule"><b>3. Ambil isi</b>Buka tiap artikel, simpan isi dan gambarnya.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>3. Unmask + ambil isi</b>Cari alamat asli artikel di situs penerbit, lalu simpan isi dan gambarnya.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
     <div class="fb db"><b>4. Simpan</b>Semua masuk database MySQL.</div>
   </div>
   <div class="flow">
     <div class="fb ai"><b>5. AI membaca</b>Menilai tiap berita: peran perusahaan, dampak, temuan risiko, kutipan bukti.<span class="tag t-ai">AI</span></div><div class="ar">→</div>
-    <div class="fb rule"><b>6. Cek bukti</b>Kutipan dari AI harus ada di teks artikel. Yang tidak ada dibuang.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>6. Cek bukti</b>Kutipan bukti pada temuan risiko harus ada di teks artikel. Yang tidak ada dibuang.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
     <div class="fb rule"><b>7. Hitung rating</b>Skor 0–100 dengan rumus tetap dari temuan di langkah 6.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
     <div class="fb ai"><b>8. Ringkasan</b>AI menyusun analisis dan dossier, lengkap dengan rujukan berita.<span class="tag t-ai">AI</span></div>
   </div>
@@ -93,10 +93,10 @@
   <h3>Urutan memakai</h3>
   <ol>
     <li>Tambah perusahaan, isi alias dan nama pengurus atau pemegang saham jika ada. Nama ini ikut dicari.</li>
-    <li>Task Runner: jalankan <b>Crawl</b> untuk perusahaan itu. Satu kali jalan sudah mengerjakan semuanya berurutan: data keuangan, cari berita, ambil isi dan gambar, klasifikasi AI, rating, analisis AI, lalu dossier.</li>
+    <li>Task Runner: jalankan <b>Full pipeline</b> untuk perusahaan itu. Satu kali jalan sudah mengerjakan semuanya berurutan: data keuangan, cari berita, saring dan buang duplikat, unmask alamat penerbit dan ambil isi serta gambar, klasifikasi AI, rating, analisis AI, lalu dossier.</li>
     <li>Buka halaman perusahaan dan baca tab Risiko AI, Dossier, dan Keuangan. Cek temuannya ke dokumen asli.</li>
   </ol>
-  <p><b>Data lama.</b> Untuk berita yang tersimpan sebelum isi artikel, klasifikasi AI, analisis, atau dossier ada, jalankan <b>Lengkapi data tersimpan</b> di Task Runner. Job ini mengulang langkah yang sama dengan urutan yang sama (isi dan gambar, klasifikasi AI, analisis, dossier) tanpa crawl ulang. Tombol terpisah per langkah juga tersedia.</p>
+  <p><b>Data lama.</b> Untuk berita yang tersimpan sebelum isi artikel, klasifikasi AI, analisis, atau dossier ada, jalankan <b>Lengkapi data tersimpan</b> di Task Runner. Job ini mengulang langkah yang sama dengan urutan yang sama (unmask dan isi serta gambar, klasifikasi AI, analisis, dossier) tanpa crawl ulang. Tombol terpisah per langkah juga tersedia.</p>
   <p>Mengambil isi artikel dan klasifikasi AI tidak boleh berjalan bersamaan, karena AI membaca isi yang baru diambil.</p>
 
   <h2 id="sumber">Sumber data</h2>
@@ -104,7 +104,7 @@
   <div class="tw"><table>
     <thead><tr><th>Sumber</th><th>Diambil</th><th>Perlu diketahui</th></tr></thead>
     <tbody>
-      <tr><td>Google News</td><td>Judul, tautan, tanggal, nama media</td><td>Tidak ada isi artikel. Isi diambil terpisah dari situs penerbit. Pencarian per crawl dibatasi 7 hari terakhir.</td></tr>
+      <tr><td>Google News</td><td>Judul, tautan, tanggal, nama media</td><td>Tidak ada isi artikel, dan tautannya tersamar (alamat Google News). Alamat asli penerbit dicari dulu (unmask), baru isinya diambil dari situs penerbit. Pencarian per crawl dibatasi 7 hari terakhir.</td></tr>
       <tr><td>Bing News</td><td>Judul, cuplikan, tanggal, gambar</td><td>Cuplikan pendek.</td></tr>
       <tr><td>YouTube</td><td>Judul dan deskripsi video</td><td>Pendapat kreator atau penonton, bukan pemberitaan.</td></tr>
       <tr><td>Media sosial</td><td>Potongan teks lewat pencarian Google</td><td>Tidak lengkap dan tidak terverifikasi.</td></tr>
@@ -120,12 +120,14 @@
   <div class="tw"><table>
     <thead><tr><th>Golongan</th><th>Domain</th><th>Skor</th><th>Bobot di rating</th></tr></thead>
     <tbody>
-      <tr><td>Sumber resmi</td><td>Semua <code>*.go.id</code>, IDX, KSEI, KPEI</td><td>95</td><td>1,2</td></tr>
-      <tr><td>Media massa</td><td>Situs berita atau web lainnya</td><td>80</td><td>1,0</td></tr>
-      <tr><td>Medsos / forum</td><td>X, Instagram, Facebook, TikTok, Threads, LinkedIn, Reddit, YouTube, Kaskus, Stockbit, Telegram</td><td>38</td><td>0,5</td></tr>
+      <tr><td>Sumber resmi</td><td>Semua <code>*.go.id</code> dan <code>*.mil.id</code>, IDX, KSEI, KPEI, serta situs resmi pemeringkat dan auditor (Pefindo, Fitch, Moody's, S&amp;P, PwC, Deloitte, KPMG, EY)</td><td>95</td><td>1,2</td></tr>
+      <tr><td>Media massa</td><td>Situs berita atau web lainnya yang tidak masuk golongan lain</td><td>80</td><td>1,0</td></tr>
+      <tr><td>Situs perusahaan</td><td>Siaran pers dan situs komersial milik perusahaan atau sekuritas (misalnya situs resmi BCA, Telkom, Pertamina, Tokopedia, Garuda)</td><td>60</td><td>0,7</td></tr>
+      <tr><td>Agregator</td><td>Penampil data pasar atau kutipan pihak lain (TradingView, Investing, Yahoo Finance, MSN), dan situs non-redaksi seperti kampus <code>*.ac.id</code></td><td>50</td><td>0,6</td></tr>
+      <tr><td>Medsos / forum</td><td>X, Instagram, Facebook, TikTok, Threads, LinkedIn, Reddit, YouTube, Kaskus, Stockbit, Telegram, dan tulisan buatan pengguna (Kompasiana, Medium, Quora, surat pembaca, Media Konsumen)</td><td>38</td><td>0,5</td></tr>
     </tbody>
   </table></div>
-  <p>Situs yang tidak ada di daftar otomatis dianggap media massa, termasuk blog berkualitas rendah.</p>
+  <p>Situs yang tidak ada di daftar otomatis dianggap media massa, termasuk blog berkualitas rendah. Hanya sumber resmi dan media massa yang dihitung sebagai sumber kredibel di rating (lihat "Jalan tengah" di bawah).</p>
 
   <h2 id="ai">Peran AI</h2>
   <p class="sub">AI hanya membaca teks yang sudah tersimpan lalu memberi penilaian. Ia tidak mencari data sendiri.</p>
@@ -133,20 +135,20 @@
     <thead><tr><th>Fitur</th><th>Yang dibaca AI</th><th>Yang dihasilkan</th></tr></thead>
     <tbody>
       <tr><td>Menilai berita</td><td>Judul dan isi artikel, sampai 2000 karakter</td><td>Peran perusahaan, ringkasan, dampak, temuan risiko dengan kutipan bukti, jenis informasi (fakta/rumor/opini), sentimen, konten konsumen</td></tr>
-      <tr><td>Analisis perusahaan</td><td>Hasil rumus rating, data keuangan, sampai 22 berita (10 teratas dengan kutipan isi)</td><td>Ringkasan, faktor risiko dan positif, temuan akta, hal yang perlu diverifikasi</td></tr>
-      <tr><td>Dossier</td><td>Berita tersimpan dan profil perusahaan</td><td>Empat bagian: pemilik &amp; pengendali, klien &amp; proyek, akta &amp; perubahan, fasilitas bank</td></tr>
+      <tr><td>Analisis perusahaan</td><td>Hasil rumus rating, data keuangan, sampai 22 berita rujukan (10 teratas disertai kutipan isi 700 karakter)</td><td>Ringkasan, faktor risiko dan positif, temuan akta, hal yang perlu diverifikasi</td></tr>
+      <tr><td>Dossier</td><td>Sampai 18 berita tersimpan yang paling banyak membahas kepemilikan, klien, kredit, atau aksi korporasi. Hanya dari berita: nama dan sektor perusahaan dipakai sebagai konteks, sedangkan pengurus dan pemegang saham yang diinput manual tidak dipakai</td><td>Empat bagian: pemilik &amp; pengendali, klien &amp; proyek, akta &amp; perubahan, fasilitas bank</td></tr>
       <tr><td>Asisten chat</td><td>Pertanyaan Anda. AI memanggil alat MCP untuk mengambil data (SQL tetap, hanya baca) lalu menjawab dari hasilnya</td><td>Jawaban teks dengan rujukan berita yang bisa diklik</td></tr>
     </tbody>
   </table></div>
   <h3>Pengaman</h3>
   <ul>
-    <li>Kutipan bukti dari AI dicek: kalau kalimatnya tidak ada di artikel, temuan itu dibuang.</li>
+    <li>Kutipan bukti pada temuan risiko dicek: kalau kalimatnya tidak ada di artikel, temuan itu dibuang. Kutipan di dossier dan analisis belum dicek otomatis; yang dicek hanya bahwa nomor berita rujukannya ada.</li>
     <li>Setiap poin analisis harus menyebut dasarnya (nomor berita atau data keuangan). Nomor yang tidak ada dibuang.</li>
-    <li>Isi berita diperlakukan sebagai data. Perintah di dalam artikel diabaikan.</li>
-    <li>Asisten hanya mengambil data lewat alat MCP yang SQL-nya tetap dan berparameter. AI tidak pernah menulis SQL, dan user database-nya hanya boleh membaca. Pertanyaan di luar topik ditolak.</li>
+    <li>AI diinstruksikan memperlakukan isi berita sebagai data dan mengabaikan perintah di dalam artikel. Ini mengurangi risiko, tetapi bukan jaminan mutlak.</li>
+    <li>Asisten hanya mengambil data lewat alat MCP yang SQL-nya tetap dan berparameter. AI tidak menulis SQL, dan user database-nya hanya boleh membaca. Asisten juga diinstruksikan menolak pertanyaan di luar topik, tetapi itu berdasarkan instruksi, bukan penjaga yang tidak bisa ditembus.</li>
   </ul>
   <h3>Yang tidak memakai AI</h3>
-  <p>Penggolongan jenis sumber, pencocokan nama ke berita, pembuangan duplikat, pengambilan isi dan gambar, data keuangan, urutan daftar berita, serta <b>perhitungan skor dan rating</b>.</p>
+  <p>Penggolongan jenis sumber, pencocokan nama ke berita, pembuangan duplikat, unmask alamat penerbit, pengambilan isi dan gambar, penentuan lapis data, data keuangan, urutan daftar berita, serta <b>perhitungan skor dan rating</b>.</p>
   <h3>Model</h3>
   <p>Utama: <code>openai/gpt-oss-120b</code> lewat Groq. Cadangan: Gemini. Asisten chat memakai Gemini dulu, lalu Groq.</p>
 
@@ -159,15 +161,17 @@
     <thead><tr><th>Faktor</th><th>Nilai</th></tr></thead>
     <tbody>
       <tr><td>Tingkat (dari AI)</td><td>1 ringan, 2 rendah, 3 sedang, 4 tinggi, 5 sangat tinggi</td></tr>
-      <tr><td>Sumber</td><td>resmi 1,2 · media massa 1,0 · medsos/forum 0,5</td></tr>
-      <tr><td>Kebaruan</td><td>sampai 7 hari 1,0 · sampai 30 hari 0,8 · sampai 90 hari 0,5 · lebih lama 0,3</td></tr>
+      <tr><td>Sumber</td><td>resmi 1,2 · media massa 1,0 · situs perusahaan 0,7 · agregator 0,6 · medsos/forum 0,5</td></tr>
+      <tr><td>Kebaruan</td><td>sampai 7 hari 1,0 · sampai 30 hari 0,8 · sampai 90 hari 0,5. Rating hanya memakai berita 90 hari terakhir, jadi berita yang lebih lama tidak dihitung.</td></tr>
       <tr><td>Rumor</td><td>0,6 jika AI menilai rumor, selain itu 1</td></tr>
       <tr><td>Peran perusahaan (dari AI)</td><td>subjek utama 1 · ikut terlibat 0,8 · hanya disebut sekilas 0,25 · pihak lain 0</td></tr>
       <tr><td>Sentimen (dari AI)</td><td>negatif 1 · netral 0,4 · positif 0. Kategori kepemilikan selalu 0,35, karena pergantian pengurus atau pemilik belum tentu buruk.</td></tr>
     </tbody>
   </table></div>
   <ul>
+    <li>Rating hanya membaca berita di lapis <b>Relevan</b> (lihat Istilah → Lapis data), jadi berita yang isinya terlalu pendek atau dinilai AI tidak relevan tidak ikut dihitung.</li>
     <li>Berita yang <b>belum dinilai AI tidak dihitung</b>. Jumlahnya ditulis di catatan halaman Risiko AI.</li>
+    <li><b>Jalan tengah untuk sumber non-kredibel.</b> Medsos, forum, agregator, dan situs perusahaan tetap dihitung. Tetapi bila satu kategori <i>hanya</i> didukung sumber seperti itu (tanpa sumber resmi atau media massa, dan tanpa data keuangan), sumbangan kategori itu dibatasi paling banyak <b>3 poin</b>. Batas ini hilang begitu ada sumber resmi atau media massa di kategori yang sama, dan dicatat di halaman Risiko AI.</li>
     <li>Tiap kategori hanya menghitung <b>4 temuan</b> terbesar, supaya banyak artikel tentang satu peristiwa tidak menggelembungkan skor.</li>
     <li>Untuk emiten, data keuangan menambah poin kategori Keuangan: rugi bersih (6), ekuitas negatif (6), DER di atas 200% kecuali bank (4), laba operasi kurang dari 1,5× beban bunga (4), laba bersih turun 20% atau lebih dari tahun lalu (3), current ratio di bawah 1 (3), arus kas bebas negatif (2), harga saham turun 20% atau lebih dalam sebulan (2).</li>
   </ul>
@@ -190,7 +194,7 @@
 
   <h3>Urutan daftar berita</h3>
   <p>Opsi <b>Rekomendasi</b> hanya mengatur urutan tampilan dan tidak memengaruhi rating:</p>
-  <div class="formula">skor = 40 (jika AI menilai relevan) + 0,4 × skor sumber + kebaruan (50 dikurangi jam/6, minimal 0) + 8 (jika dampak buruk) + 3 × tingkat risiko − 20 (jika persepsi publik)</div>
+  <div class="formula">skor = 40 (jika AI menilai relevan) + 0,4 × skor sumber + kebaruan (50 dikurangi jam/6, minimal 0) + 8 (jika dampak buruk) + 3 × tingkat risiko − 60 (jika persepsi publik)</div>
   <p>Opsi lain (terbaru, terlama, risiko tertinggi, sumber paling kredibel, paling sering muncul) mengurutkan menurut satu kolom saja.</p>
 
   <h3>Arti label</h3>
@@ -199,7 +203,7 @@
     <dt>Perlu perhatian</dt><dd>Berita berdampak buruk, atau memuat temuan risiko tingkat 3 ke atas.</dd>
     <dt>Belum dinilai AI</dt><dd>AI belum membaca berita ini. Dampak dan risikonya kosong, dan tidak dihitung dalam rating.</dd>
     <dt>Peran perusahaan</dt><dd>Subjek utama, ikut terlibat, hanya disebut sekilas, atau pihak lain (misalnya perusahaan bernama mirip).</dd>
-    <dt>Sumber resmi</dt><dd>Domain instansi pemerintah atau bursa. Menunjukkan jenis sumber, bukan jaminan isinya benar.</dd>
+    <dt>Sumber resmi</dt><dd>Domain instansi pemerintah, militer, bursa, atau situs resmi pemeringkat dan auditor. Menunjukkan jenis sumber, bukan jaminan isinya benar.</dd>
     <dt>Rumor</dt><dd>AI menilai kabar itu belum terverifikasi, misalnya memakai kata "diduga" atau bersumber anonim.</dd>
     <dt>Angka biru [n]</dt><dd>Nomor berita rujukan dalam satu analisis atau dossier. Nomornya dibuat per analisis dan berganti bila dibuat ulang. Klik untuk membuka beritanya.</dd>
   </dl>
@@ -216,7 +220,7 @@
   <h3>Data</h3>
   <ul>
     <li>Hanya mencakup berita yang muncul di Google, Bing, dan YouTube dan bisa diakses. Berita penting bisa terlewat.</li>
-    <li>Jika isi artikel tidak bisa diambil, AI hanya membaca judul atau cuplikan.</li>
+    <li>AI menilai dari judul <b>dan isi artikel</b> (sampai 2.000 karakter). Berita yang alamat penerbitnya belum ketemu tidak dikirim ke AI sama sekali. Bila alamatnya ada tetapi isinya gagal diambil, AI terpaksa menilai dari judul dan cuplikan; berita seperti itu tidak masuk lapis Relevan sampai isinya cukup panjang (500 karakter untuk berita, 80 untuk caption), sehingga bisa dikenali.</li>
     <li>Perusahaan dengan nama umum bisa tercampur dengan pihak lain.</li>
     <li>Rumor dan media sosial tidak terverifikasi. Berita lama atau yang sudah dibantah bisa muncul.</li>
     <li>Perusahaan tertutup tidak punya laporan keuangan publik, jadi ratingnya hanya dari berita.</li>
@@ -240,7 +244,7 @@
   <dl class="gl">
     <dt>FAP</dt><dd>Tahap pemrosesan debitur di perusahaan pembiayaan. Kepanjangan resminya tidak didefinisikan di aplikasi; ikuti definisi internal perusahaan.</dd>
     <dt>Debitur</dt><dd>Perusahaan klien yang mengajukan atau menerima pembiayaan, yaitu perusahaan yang dipantau di sini.</dd>
-    <dt>Dossier</dt><dd>Berkas ringkas tentang struktur dan hubungan bisnis perusahaan, disusun AI dari berita. Isinya empat bagian, dan setiap poin membawa kutipan serta nomor berita. Status "dari berita" berarti belum dicocokkan dengan dokumen resmi.</dd>
+    <dt>Dossier</dt><dd>Berkas ringkas tentang struktur dan hubungan bisnis perusahaan, disusun AI dari berita. Isinya empat bagian, dan setiap poin membawa kutipan serta nomor berita (kutipannya belum dicek otomatis). Status "dari berita" berarti belum dicocokkan dengan dokumen resmi; status "mengutip dokumen" berarti berita menyebut dokumen resmi, tetapi dokumennya sendiri belum diperiksa aplikasi.</dd>
     <dt>Deed discovery</dt><dd>Menelusuri siapa pengurus, pemegang saham, dan pengendali perusahaan beserta perubahannya, dari akta. Hasil dari berita hanya petunjuk awal.</dd>
     <dt>Akta dan AHU</dt><dd>Akta dibuat notaris dan disahkan Kementerian Hukum lewat sistem AHU. Ini dokumen resmi yang menentukan pengurus dan pemegang saham.</dd>
     <dt>PSP</dt><dd>Pemegang saham pengendali.</dd>
@@ -259,14 +263,18 @@
     <dt>Free cash flow</dt><dd>Arus kas bebas setelah belanja modal. Negatif berarti kas terserap.</dd>
     <dt>DSCR</dt><dd>Kemampuan arus kas membayar cicilan pokok dan bunga. Tidak dihitung otomatis; analis menghitungnya sendiri.</dd>
     <dt>Plafon</dt><dd>Batas maksimum fasilitas kredit dari bank, bukan jumlah yang sudah terpakai.</dd>
-    <dt>Cleaned</dt><dd>Berita yang dinilai relevan dengan perusahaan. Berita tutorial, promo, atau tentang pihak lain disaring.</dd>
+    <dt>Lapis data</dt><dd>Berita disimpan dalam tiga lapis, dan lapis yang tampil dipilih di pemilih <b>Lapis</b> di bagian atas halaman (angka di sampingnya adalah jumlah berita tiap lapis). <b>Mentah</b>: semua hasil crawl, termasuk yang alamat asli penerbitnya belum ketemu. <b>Cleaned</b>: alamat penerbit valid dan bukan konten konsumen (tutorial, promo, lowongan), termasuk yang dinilai AI tidak relevan. <b>Relevan</b> (bawaan): cleaned yang dinilai AI relevan (dengan penilaian format baru, yaitu peran perusahaannya terisi) dan isinya cukup untuk dinilai. Berita yang dinilai AI versi lama tetap di Cleaned sampai dinilai ulang lewat "Klasifikasi AI ulang". Pemilih ini hanya mengubah daftar dan hitungan berita; rating, analisis, dan dossier tidak berubah. Angka di pemilih bersifat kumulatif: Mentah = semua berita, Cleaned = Cleaned + Relevan, Relevan = hanya yang lolos semua syarat. Rating dan asisten AI selalu membaca lapis Relevan.</dd>
+    <dt>Isi minimal</dt><dd>Berita masuk lapis Relevan hanya bila isi yang tersimpan cukup panjang: <b>500 karakter</b> untuk berita, resmi, dan blog; <b>80 karakter</b> untuk caption media sosial, video, dan persepsi publik (captionnya memang pendek). Berita yang lebih pendek tetap ada di Cleaned. Jalankan "Lengkapi data tersimpan" untuk mengambil isinya.</dd>
+    <dt>Cleaned</dt><dd>Lapis kedua dari tiga lapis data (lihat <b>Lapis data</b>): berita dengan alamat penerbit valid dan bukan konten konsumen. Belum tentu relevan dengan perusahaan.</dd>
+    <dt>Juga dimuat di N media</dt><dd>Satu berita sering dimuat banyak media dengan judul sama atau mirip. Hanya <b>satu</b> yang disimpan sebagai berita, supaya daftar dan rating tidak menghitung ganda. Yang dipertahankan adalah penerbit dengan skor kredibilitas paling tinggi (bila sama, yang lebih dulu ditemukan). Media lain yang memuat berita yang sama tidak dibuang begitu saja: dicatat di tabel terpisah (domain, tautan, judul versi mereka, jenis sumber, skor, waktu terlihat; maksimal 30 per berita) dan tampil di modal berita sebagai "Juga dimuat di N media", serta chip "+N media" di kartu. Ini hanya catatan; banyaknya media belum memengaruhi rating. Berita yang sama untuk perusahaan berbeda disimpan per perusahaan, karena relevansinya dinilai per perusahaan; di Beranda tanpa filter artikel seperti itu tampil sekali dengan label "juga: ..." berisi perusahaan lainnya. Pengecekan judul mirip hanya melihat berita 21 hari terakhir, jadi yang jauh lebih lama bisa lolos sebagai berita terpisah.</dd>
     <dt>Checkpoint</dt><dd>Penanda perusahaan yang sudah selesai diproses sebuah job, dipakai untuk melanjutkan job yang terputus.</dd>
   </dl>
 
   <h2 id="faq">Tanya jawab</h2>
-  <details><summary>Kenapa rating perusahaan tertulis "Data belum cukup"?</summary><div><p>Belum ada berita yang dinilai AI dan tidak ada data keuangan. Jalankan "Ambil isi &amp; gambar artikel", lalu "Klasifikasi AI ulang" di Task Runner.</p></div></details>
-  <details><summary>Kenapa ada berita "Belum dinilai AI"?</summary><div><p>Berita itu baru, atau disimpan sebelum format penilaian yang sekarang. Aplikasi tidak menebak dampaknya dari kata kunci karena hasilnya sering meleset. Dampak dikosongkan sampai AI membacanya.</p></div></details>
+  <details><summary>Kenapa rating perusahaan tertulis "Data belum cukup"?</summary><div><p>Belum ada berita yang dinilai AI dan tidak ada data keuangan. Jalankan "Unmask + ambil isi &amp; gambar artikel", lalu "Klasifikasi AI ulang" di Task Runner.</p></div></details>
+  <details><summary>Kenapa ada berita "Belum dinilai AI"?</summary><div><p>Berita itu baru, disimpan sebelum format penilaian yang sekarang, atau alamat asli penerbitnya belum ketemu (berita seperti itu tidak dikirim ke AI sampai di-unmask). Aplikasi tidak menebak dampaknya dari kata kunci karena hasilnya sering meleset. Dampak dikosongkan sampai AI membacanya.</p></div></details>
   <details><summary>Kenapa dua berita mirip dinilai berbeda?</summary><div><p>AI membaca isi tiap berita, dan isinya bisa berbeda walau judulnya mirip. Penilaian AI juga tidak selalu sama setiap kali. Buka kedua berita dan bandingkan kutipan buktinya.</p></div></details>
+  <details><summary>Apakah asisten AI bisa menjelaskan cara kerja aplikasi ini?</summary><div><p>Bisa. Tanyakan misalnya "app ini tentang apa?" atau "apa bedanya cleaned dan relevan?". Asisten membaca isi halaman Bantuan ini (disalin ke database oleh <code>scripts/db-add-help.js</code>; jalankan ulang setelah Bantuan diedit, jika tidak asisten menjawab dari versi lama) dan menyertakan tautan ke bagian terkait. Hal yang tidak ada di Bantuan dijawab terus terang tidak ada.</p></div></details>
   <details><summary>Bisakah bobot rating diubah?</summary><div><p>Bobot ada di <code>src/risk.js</code> dan dijelaskan di halaman ini. Mengubahnya memengaruhi semua rating, jadi halaman ini perlu ikut diperbarui.</p></div></details>
   <details><summary>Apakah angka [3] di analisis selalu merujuk ke berita yang sama?</summary><div><p>Tidak. Nomor hanya berlaku di dalam satu analisis atau dossier, dan berganti saat dibuat ulang. Klik angkanya untuk membuka berita yang dimaksud.</p></div></details>
   <details><summary>Job terputus, apakah data hilang?</summary><div><p>Data yang sudah tersimpan aman. Checkpoint dicatat per perusahaan: yang sudah selesai dilewati saat "Lanjutkan", yang terputus di tengah diulang dari awal. Berita yang sudah tersimpan tidak digandakan.</p></div></details>

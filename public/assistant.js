@@ -223,7 +223,7 @@
       if (list) { html += '</ul>'; list = false; }
       if (ln.trim()) html += '<p>' + ln + '</p>';
     }
-    return (html + (list ? '</ul>' : '')).replace(/`/g, '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\[berita #(\d+)\]/g, '<a class="as-ref" href="#" data-nid="$1" title="Buka berita #$1">berita #$1</a>');
+    return (html + (list ? '</ul>' : '')).replace(/`/g, '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\[([^\]]{1,80})\]\((\/help[.]html(?:#[a-z0-9_-]{1,40})?)\)/g, '<a class="as-ref" href="$2" target="_blank" rel="noopener">$1</a>').replace(/\[berita #(\d+)\]/g, '<a class="as-ref" href="#" data-nid="$1" title="Buka berita #$1">berita #$1</a>');
   };
   // Rekomendasi pertanyaan hanya muncul bila belum ada pertanyaan sejak awal percakapan atau sejak pergantian konteks.
   const ctxKey = (c) => c.type + ':' + (c.companyId || c.newsId || '');

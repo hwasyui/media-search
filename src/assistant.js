@@ -46,7 +46,6 @@ function contextNote(ctx, label) {
 }
 const ctxKey = (c) => c && (c.type + ':' + (c.companyId || c.newsId || ''));
 
-// ─── Penjaga lingkup (tanpa AI, tanpa token) ───
 // Pertanyaan di luar topik aplikasi ditolak SEBELUM memanggil AI. Aturan: pertanyaan harus menyebut istilah domain atau nama/ticker/alias perusahaan yang dipantau
 // (daftar perusahaan diambil lewat alat MCP daftar_perusahaan, bukan SQL langsung). Pertanyaan lanjutan pendek lolos bila pertanyaan sebelumnya dalam lingkup.
 const DOMAIN = new RegExp('\\b(' + [
@@ -56,11 +55,12 @@ const DOMAIN = new RegExp('\\b(' + [
   'alat berat', 'traktor', 'ekskavator', 'sektor', 'ojk', 'bursa', 'idx', 'valuasi', 'pbv', 'gugatan', 'pailit', 'pkpu', 'korupsi', 'sanksi', 'izin usaha', 'reputasi',
   'regulasi', 'filter', 'cleaned', 'mentah', 'persepsi publik', 'kategori risiko', 'profil risiko', 'temuan', 'bukti', 'sumber berita', 'kata kunci', 'dossier', 'bowheer', 'ubo',
   'pemangku kepentingan', 'stakeholder', 'analisis ai', 'data tersimpan', 'aplikasi ini', 'portal ini', 'halaman ini', 'duplikat', 'afiliasi', 'beneficial owner', 'pengendali', 'akuisisi',
+  'app', 'aplikasi', 'help', 'bantuan', 'panduan', 'cara kerja', 'cara pakai', 'cara memakai', 'fitur', 'tentang apa', 'apa itu', 'apa ini', 'unmask', 'pipeline', 'lapis', 'lapis data', 'media search',
   'rasio', 'solvabilitas', 'dscr', 'kolektibilitas', 'restrukturisasi', 'covenant', 'debt', 'equity', 'revenue', 'risk', 'credit', 'news', 'company',
 ].join('|').replace(/ /g, '\\s+') + ')\\b', 'i');
 const GREET = /^\s*(halo|hai|hi|hello|selamat (pagi|siang|sore|malam)|terima kasih|makasih|thanks|thank you|ok|oke|sip|baik|siap)\b[\s!.,]*$/i;
 const INJECT = /(abaikan|lupakan|ignore|disregard|forget)\s+(semua\s+|all\s+|the\s+)?(instruksi|aturan|perintah|prompt|previous|above|rules|instructions)|system\s*prompt|prompt\s*sistem|you are now|kamu sekarang adalah|jailbreak|developer mode|\bdan\b\s*mode/i;
-const OUT_OF_SCOPE = 'Maaf, saya hanya membantu hal yang berkaitan dengan aplikasi ini: portofolio dan profil risiko perusahaan, berita dan sumbernya, temuan deed discovery, data keuangan, serta cara memakai portal dan Task Runner. Coba tanyakan salah satunya.';
+const OUT_OF_SCOPE = 'Maaf, saya hanya membantu hal yang berkaitan dengan aplikasi ini: portofolio dan profil risiko perusahaan, berita dan sumbernya, temuan deed discovery, data keuangan, serta cara kerja dan cara memakai aplikasi ini (portal dan Task Runner). Coba tanyakan salah satunya.';
 
 const GENERIC = new Set(['indonesia', 'persero', 'central', 'bank', 'group', 'grup', 'holding', 'nasional', 'perusahaan', 'internasional', 'global', 'utama', 'sejahtera', 'makmur', 'abadi', 'jaya']);
 let termCache = { at: 0, re: null };

@@ -90,7 +90,7 @@ name: cari_berita
 type: mysql-sql
 source: media-search
 description: Cari berita yang sudah disaring (cleaned) - maksimal 30, terbaru dulu. impact = baik/buruk/netral (penilaian AI atas isi berita; NULL berarti belum dinilai AI), risk_level 0-5, company_role = peran perusahaan dalam berita. Gunakan detail_berita untuk isi lengkap.
-statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.impact, n.risk_level, n.company_role, n.category, n.sentiment, n.ai_summary, n.article_url FROM news_cleaned n WHERE n.company_id LIKE ? AND CONCAT_WS(' ', n.title, n.ai_summary) LIKE CONCAT('%', ?, '%') AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.sort_at DESC LIMIT 30
+statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.impact, n.risk_level, n.company_role, n.category, n.sentiment, n.ai_summary, n.article_url FROM news_relevant n WHERE n.company_id LIKE ? AND CONCAT_WS(' ', n.title, n.ai_summary) LIKE CONCAT('%', ?, '%') AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.sort_at DESC LIMIT 30
 parameters:
   - name: company
     type: string
@@ -107,7 +107,7 @@ name: berita_berisiko
 type: mysql-sql
 source: media-search
 description: Berita yang dinilai AI berdampak buruk atau bertingkat risiko 3 ke atas, tingkat tertinggi dulu - maksimal 30. Termasuk kategori risiko dan kutipan buktinya (risk_tags).
-statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.risk_level, n.risk_tags, n.impact, n.impact_reason, n.company_role, n.ai_summary, n.article_url FROM news_cleaned n WHERE n.company_id LIKE ? AND (n.impact = 'buruk' OR n.risk_level >= 3) AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.risk_level DESC, n.sort_at DESC LIMIT 30
+statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.risk_level, n.risk_tags, n.impact, n.impact_reason, n.company_role, n.ai_summary, n.article_url FROM news_relevant n WHERE n.company_id LIKE ? AND (n.impact = 'buruk' OR n.risk_level >= 3) AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.risk_level DESC, n.sort_at DESC LIMIT 30
 parameters:
   - name: company
     type: string
@@ -120,8 +120,8 @@ kind: tool
 name: detail_berita
 type: mysql-sql
 source: media-search
-description: Detail satu berita menurut id (termasuk yang belum lolos saringan) - ringkasan dan penilaian AI, temuan risiko dengan bukti, alamat artikel asli, dan isi artikel (dipotong 6000 karakter, berupa HTML paragraf). ai_status 'ok' dengan company_role terisi = sudah dinilai AI.
-statement: SELECT n.id, n.company_id, c.name AS perusahaan, n.title, n.source_name, n.sort_at AS terbit, n.article_url, n.platform, n.credibility_tier, n.ai_status, n.company_role, n.relevant, n.impact, n.impact_reason, n.category, n.sentiment, n.confidence, n.ai_summary, n.reason, n.risk_level, n.risk_tags, n.link_error, LEFT(n.content_html, 6000) AS isi_html FROM news_items n JOIN companies c ON c.id = n.company_id WHERE n.id = ? LIMIT 1
+description: Detail satu berita menurut id (termasuk yang belum lolos saringan) - ringkasan dan penilaian AI, temuan risiko dengan bukti, alamat artikel asli, dan isi artikel (dipotong 6000 karakter, berupa HTML paragraf). ai_status 'ok' dengan company_role terisi = sudah dinilai AI. juga_dimuat = media lain yang memuat berita yang sama (duplikat yang tidak disimpan sebagai berita sendiri).
+statement: SELECT n.id, n.company_id, c.name AS perusahaan, n.title, n.source_name, n.sort_at AS terbit, n.article_url, n.platform, n.credibility_tier, n.ai_status, n.company_role, n.relevant, n.impact, n.impact_reason, n.category, n.sentiment, n.confidence, n.ai_summary, n.reason, n.risk_level, n.risk_tags, n.link_error, (SELECT JSON_ARRAYAGG(JSON_OBJECT('domain', a.domain, 'url', a.url, 'tier', a.tier, 'skor', a.score)) FROM news_also a WHERE a.news_id = n.id) AS juga_dimuat, LEFT(n.content_html, 6000) AS isi_html FROM news_items n JOIN companies c ON c.id = n.company_id WHERE n.id = ? LIMIT 1
 parameters:
   - name: id
     type: integer
@@ -132,7 +132,7 @@ name: statistik_berita
 type: mysql-sql
 source: media-search
 description: Hitungan berita (cleaned) per perusahaan dalam N hari - total, berdampak buruk, berdampak baik, risiko tingkat 3+, rumor, dan berapa yang sudah dinilai AI. Untuk pertanyaan jumlah tanpa perlu membaca berita satu per satu.
-statement: SELECT n.company_id, COUNT(*) AS total, SUM(n.impact = 'buruk') AS dampak_buruk, SUM(n.impact = 'baik') AS dampak_baik, SUM(n.risk_level >= 3) AS risiko_3_plus, SUM(n.category = 'rumor') AS rumor, SUM(n.ai_status = 'ok' AND n.company_role IS NOT NULL) AS sudah_dinilai_ai FROM news_cleaned n WHERE n.company_id LIKE ? AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY GROUP BY n.company_id ORDER BY total DESC LIMIT 100
+statement: SELECT n.company_id, COUNT(*) AS total, SUM(n.impact = 'buruk') AS dampak_buruk, SUM(n.impact = 'baik') AS dampak_baik, SUM(n.risk_level >= 3) AS risiko_3_plus, SUM(n.category = 'rumor') AS rumor, SUM(n.ai_status = 'ok' AND n.company_role IS NOT NULL) AS sudah_dinilai_ai FROM news_relevant n WHERE n.company_id LIKE ? AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY GROUP BY n.company_id ORDER BY total DESC LIMIT 100
 parameters:
   - name: company
     type: string
@@ -140,3 +140,14 @@ parameters:
   - name: hari
     type: integer
     description: rentang hari ke belakang, mis. 30
+---
+kind: tool
+name: bantuan_aplikasi
+type: mysql-sql
+source: media-search
+description: Isi halaman Bantuan aplikasi (cara kerja, alur, sumber data, peran AI, perhitungan rating, batasan, istilah, tanya jawab) - maksimal 6 bagian. Pakai untuk pertanyaan tentang aplikasi itu sendiri (apa ini, cara memakai, cara kerja, arti istilah atau label, lapis data). Isi kata dengan SATU kata kunci pendek (mis. lapis, rating, unmask, dossier); string kosong menghasilkan bagian pembuka. Kolom link adalah alamat halaman Bantuan untuk bagian itu.
+statement: SELECT h.title, h.content, CONCAT('/help.html#', h.anchor) AS link FROM app_help h, (SELECT ? AS k) q WHERE CONCAT_WS(' ', h.title, h.content) LIKE CONCAT('%', q.k, '%') ORDER BY (h.title LIKE CONCAT('%', q.k, '%')) DESC, h.sort_no LIMIT 6
+parameters:
+  - name: kata
+    type: string
+    description: satu kata kunci pendek; string kosong untuk bagian pembuka

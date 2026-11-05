@@ -14,17 +14,21 @@ export const MODIFIERS = {
   viral: { label: 'Viral', terms: 'viral OR heboh OR trending' },
   kontroversi: { label: 'Kontroversi', terms: 'kontroversi OR skandal OR dugaan OR korupsi' },
   keluhan: { label: 'Keluhan publik', terms: 'keluhan OR kecewa OR komplain' },
-  rumor: { label: 'Rumor', terms: 'katanya OR konon OR rumor OR hoax' },
+  rumor: { label: 'Rumor', terms: 'katanya OR konon OR rumor OR hoax OR spekulasi OR bocoran OR dikabarkan OR "cek ombak"' },      // perusahaan terbuka (rumor pasar)
   // Untuk mengisi dossier: pemilik & akta, klien & proyek, kredit & fasilitas bank, serta perkara hukum (perusahaan tertutup)
-  deed: { label: 'Akta & pemilik', terms: 'notaris OR akta OR AHU OR "pemegang saham" OR "pemilik manfaat" OR direksi OR komisaris' },
-  klien: { label: 'Klien & proyek', terms: 'tender OR proyek OR kontrak OR subkontraktor OR klien OR mitra' },
-  kredit: { label: 'Kredit & keuangan', terms: 'kredit OR pinjaman OR "fasilitas bank" OR audit OR "laporan keuangan" OR utang' },
-  hukum: { label: 'Perkara hukum', terms: 'gugatan OR sengketa OR PKPU OR pailit' },
+  deed: { label: 'Akta & pemilik', terms: 'notaris OR akta OR AHU OR Kemenkumham OR "pemegang saham" OR "pemilik manfaat" OR UBO OR direksi OR komisaris' },
+  klien: { label: 'Klien & proyek', terms: 'tender OR "menang tender" OR proyek OR kontrak OR "kontrak baru" OR bowheer OR "owner proyek" OR kontraktor OR subkontraktor OR konsesi OR klien OR mitra' },
+  kredit: { label: 'Kredit & keuangan', terms: 'kredit OR pinjaman OR "fasilitas bank" OR perbankan OR sindikasi OR audit OR "laporan keuangan" OR "financial statement" OR utang' },
+  hukum: { label: 'Perkara hukum', terms: 'gugatan OR sengketa OR PKPU OR pailit OR wanprestasi OR amdal OR izin OR dugaan' },      // perusahaan tertutup
 };
 
-export function buildQuery(keyword, modifier) {
+// anchor (opsional): satu atau beberapa nama perusahaan (salah satunya harus ikut muncul). Dipakai untuk pemangku kepentingan agar hasilnya tentang hubungan mereka dengan
+// perusahaan itu, bukan berita umum tentang pemangku kepentingannya (mis. "Otoritas Jasa Keuangan" "BCA", bukan OJK saja).
+export function buildQuery(keyword, modifier, anchor = null) {
   const terms = MODIFIERS[modifier]?.terms;
-  return terms ? `"${keyword}" (${terms})` : `"${keyword}"`;
+  const names = [].concat(anchor || []).filter(Boolean);
+  const base = names.length ? `"${keyword}" (${names.map((n) => `"${n}"`).join(' OR ')})` : `"${keyword}"`;
+  return terms ? `${base} (${terms})` : base;
 }
 
 export async function runSearch({ keywords, sources, modifiers }, onChunk) {

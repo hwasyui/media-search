@@ -1,38 +1,46 @@
-# Media Search — Setup Guide
+# Media Search: Panduan Setup
 
-## Requirements
+## Kebutuhan
 
 - **Node.js** v22+
 - **Python** 3.10+
+- **MySQL** 8+
 
 ---
 
-## 1. Clone / Copy the project
+## 1. Salin proyek
 
-Make sure `node_modules/` is excluded. Everything else (including `data/`) can be copied as-is.
-
----
-
-## 2. Environment file
-
-Create a `.env` file in the project root:
-
-```
-GROQ_API_KEY=your_key_here
-```
-
-Get a free API key at https://console.groq.com
-
-Optional overrides:
-```
-GROQ_MODEL=openai/gpt-oss-120b   # default model
-PYTHON=python                     # or python3 if needed
-PORT=3000                         # default port
-```
+Pastikan `node_modules/` tidak ikut disalin.
 
 ---
 
-## 3. Install Node dependencies
+## 2. File lingkungan
+
+Salin `.env.example` menjadi `.env`, lalu isi. File `.env` berisi rahasia dan tidak boleh di-commit.
+
+Yang perlu diisi:
+
+```
+# AI (Groq lebih dulu, cadangan otomatis ke Gemini)
+GROQ_API_KEY=...
+GEMINI_API_KEY=...
+
+# MySQL (schema aplikasi: media-search)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=...
+DB_PASSWORD=...
+
+# Asisten AI (MCP): user MySQL khusus baca, lihat db/mcp_readonly_user.sql
+MCP_DB_USER=...
+MCP_DB_PASSWORD=...
+```
+
+Pengaturan opsional (nilai bawaan dalam kurung): `PORT` (3000), `GROQ_MODEL`, `GEMINI_MODEL`, `PYTHON` (`python`; isi `python3` bila perlu), `AI_MAX_ITEMS`, `FINANCIAL_TTL_HOURS`. Daftar lengkap ada di `.env.example`.
+
+---
+
+## 3. Pasang dependensi Node
 
 ```bash
 npm install
@@ -40,43 +48,50 @@ npm install
 
 ---
 
-## 4. Install Python dependencies
+## 4. Pasang dependensi Python
 
 ```bash
 pip install -r listener/requirements.txt
-```
-
-Then install the Playwright browser (required for Social Media scraping):
-
-```bash
 playwright install chromium
 ```
 
-> If `playwright` command is not found, try: `python -m playwright install chromium`
+> Bila perintah `playwright` tidak ditemukan: `python -m playwright install chromium`
 
 ---
 
-## 5. Run the app
+## 5. Siapkan database
+
+```bash
+npm run db:init
+```
+
+Perintah ini membuat schema `media-search` beserta tabel dan view dari `db/schema.sql`, lalu mengisi daftar perusahaan awal dari `data/companies.json`.
+
+Untuk asisten AI, jalankan `db/mcp_readonly_user.sql` sebagai admin MySQL (ganti dulu kata sandinya) agar user `mcp_ro` hanya punya hak baca. Panduan data untuk asisten ada di `db/CHATBOT.md`.
+
+---
+
+## 6. Jalankan aplikasi
 
 ```bash
 npm start
 ```
 
-Open http://localhost:3000 in your browser.
+Buka http://localhost:3000 (atau sesuai `PORT`). Pengambilan berita, klasifikasi AI, rating, analisis, dan dossier dijalankan dari halaman **Task Runner**. Cara kerja dan arti istilah ada di halaman **Bantuan** (`/help.html`).
 
 ---
 
-## Data storage
+## Penyimpanan data
 
-All crawled articles are stored as plain JSON files in `data/articles/YYYY-MM-DD.json`. No database required.
+Semua data tersimpan di MySQL (schema `media-search`). Ringkasan lapis data berita ada di `db/CHATBOT.md`.
 
 ---
 
-## Troubleshooting
+## Pemecahan masalah
 
-| Problem | Fix |
+| Masalah | Solusi |
 |---|---|
-| `GROQ_API_KEY belum diisi` | Check `.env` file exists in project root |
-| Social media returns 0 results | Run `playwright install chromium` |
-| `python` not found | Set `PYTHON=python3` in `.env` |
-| Port already in use | Set `PORT=3001` in `.env` |
+| Tidak bisa terhubung ke database | Periksa `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` di `.env`, dan pastikan MySQL berjalan |
+| Asisten AI tidak menjawab | Pastikan `MCP_DB_USER` dan `MCP_DB_PASSWORD` terisi dan user `mcp_ro` sudah dibuat |
+| `python` tidak ditemukan | Isi `PYTHON=python3` di `.env` |
+| Port sudah dipakai | Isi `PORT=3001` di `.env` |

@@ -4,11 +4,11 @@ import { db } from './db.js';
 const parseJson = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
 
 export async function listCompanies() {
-  const [cos] = await db().query('SELECT id,name,type,ticker,sector,aliases,last_crawl_at FROM companies ORDER BY name');
+  const [cos] = await db().query('SELECT id,name,type,ticker,sector,aliases,extra_queries,last_crawl_at FROM companies ORDER BY name');
   const [stk] = await db().query('SELECT company_id,name,role FROM stakeholders ORDER BY id');
   return cos.map((c) => ({
     id: c.id, name: c.name, type: c.type, ticker: c.ticker || undefined, sector: c.sector,
-    aliases: parseJson(c.aliases) || [], lastCrawlAt: c.last_crawl_at,
+    aliases: parseJson(c.aliases) || [], extraQueries: parseJson(c.extra_queries) || [], lastCrawlAt: c.last_crawl_at,
     stakeholders: stk.filter((s) => s.company_id === c.id).map((s) => ({ name: s.name, role: s.role })),
   }));
 }
@@ -17,13 +17,24 @@ export async function getCompany(id) {
   return (await listCompanies()).find((c) => c.id === id) || null;
 }
 
+// Ubah pengaturan pencarian perusahaan yang sudah ada (alias dan query tambahan). Pengurus/pemegang saham tidak disentuh.
+export async function updateCompanySearch(id, { aliases, extraQueries }) {
+  const sets = [], params = [];
+  if (Array.isArray(aliases)) { sets.push('aliases = ?'); params.push(JSON.stringify(aliases)); }
+  if (Array.isArray(extraQueries)) { sets.push('extra_queries = ?'); params.push(JSON.stringify(extraQueries)); }
+  if (!sets.length) return getCompany(id);
+  const [r] = await db().query('UPDATE companies SET ' + sets.join(', ') + ' WHERE id = ?', [...params, id]);
+  if (!r.affectedRows && !(await getCompany(id))) return null;
+  return getCompany(id);
+}
+
 export async function saveCompany(c) {
   const id = c.id || (c.ticker ? c.ticker.toLowerCase() : c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
   const aliases = Array.isArray(c.aliases) ? JSON.stringify(c.aliases) : JSON.stringify([c.name, ...(c.ticker ? [c.ticker] : [])]);
   await db().query(
-    `INSERT INTO companies (id, name, type, ticker, sector, aliases) VALUES (?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE name=VALUES(name), type=VALUES(type), ticker=VALUES(ticker), sector=VALUES(sector), aliases=VALUES(aliases)`,
-    [id, c.name, c.type || 'public', c.ticker || null, c.sector || 'Bursa Efek Indonesia', aliases]
+    `INSERT INTO companies (id, name, type, ticker, sector, aliases, extra_queries) VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE name=VALUES(name), type=VALUES(type), ticker=VALUES(ticker), sector=VALUES(sector), aliases=VALUES(aliases), extra_queries=VALUES(extra_queries)`,
+    [id, c.name, c.type || 'public', c.ticker || null, c.sector || 'Bursa Efek Indonesia', aliases, JSON.stringify(Array.isArray(c.extraQueries) ? c.extraQueries : [])]
   );
   if (Array.isArray(c.stakeholders)) {
     for (const s of c.stakeholders) {

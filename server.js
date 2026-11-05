@@ -9,7 +9,7 @@ import { enrichItemsWithContent, extractContentFromUrl } from './src/extractor.j
 import { classifyItems, geminiKeys, groqKeys, MAX_ITEMS as AI_MAX_ITEMS } from './src/classify.js';
 import { getFinancials, searchIdx } from './src/financial.js';
 import { cancelJob, flushJobs, getJob, listJobs, publicJob, recoverJobs, resumeJob, startJob } from './src/jobs.js';
-import { getCompany, latestAnalysis, latestFinancial, latestRiskProfiles, listCompanies, listReports, readReport } from './src/store.js';
+import { getCompany, updateCompanySearch, latestAnalysis, latestFinancial, latestRiskProfiles, listCompanies, listReports, readReport } from './src/store.js';
 import { saveAnalysis, saveCompany, saveFinancial, saveNews, saveRiskProfile } from './src/save.js';
 import { generateAnalysis } from './src/analysis.js';
 import { generateCompanyDossier, getCompanyDossier } from './src/dossier.js';
@@ -22,7 +22,7 @@ import { isGoogleArticle, resolveGoogleUrl } from './src/gnews.js';
 import { isGoogleNewsUrl, resolveArticleUrl } from './src/resolver.js';
 import { getCover } from './src/covers.js';
 import { getRiskProfile } from './src/riskprofile.js';
-import { companyNewsStats, getNewsDetail, listNews, newsCounts, newsFacets, newsTotal, platformCounts } from './src/news.js';
+import { companyNewsStats, getNewsDetail, layerCounts, listNews, newsCounts, newsFacets, newsTotal, platformCounts } from './src/news.js';
 import { buildNarrative } from './src/narrative.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,9 +77,27 @@ app.get('/api/idx/search', async (req, res) => {
 });
 
 // Tambah / registrasi perusahaan baru
+// Query tambahan dari analis: teks pencarian bebas, dibersihkan (tanpa karakter kontrol), maks. 10 query @ 150 karakter
+const cleanQueries = (v) => [...new Set((Array.isArray(v) ? v : []).map((q) => String(q || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150)).filter((q) => q.length >= 3))].slice(0, 10);
+const cleanAliases = (v) => [...new Set((Array.isArray(v) ? v : []).map((a) => String(a || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)).filter((a) => a.length >= 2))].slice(0, 12);
+
+// Ubah alias dan query tambahan perusahaan yang sudah ada
+app.patch('/api/companies/:id', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const co = await updateCompanySearch(req.params.id, {
+      aliases: body.aliases === undefined ? undefined : cleanAliases(body.aliases),
+      extraQueries: body.extraQueries === undefined ? undefined : cleanQueries(body.extraQueries),
+    });
+    if (!co) return res.status(404).json({ error: 'perusahaan tidak ditemukan' });
+    res.json({ company: co });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/companies', async (req, res) => {
   try {
     const { name, ticker, type = 'public', sector, aliases = [], stakeholders = [] } = req.body;
+    const extraQueries = cleanQueries(req.body.extraQueries);
     if (!name) return res.status(400).json({ error: 'Nama perusahaan wajib diisi' });
     const co = await saveCompany({
       name,
@@ -88,6 +106,7 @@ app.post('/api/companies', async (req, res) => {
       sector: sector || (type === 'public' ? 'Bursa Efek Indonesia' : 'Swasta / BUMN'),
       aliases: aliases.length ? aliases : [name, ...(ticker ? [ticker.toUpperCase()] : [])],
       stakeholders,
+      extraQueries,
     });
     res.json({ company: co });
   } catch (e) {
@@ -257,6 +276,8 @@ app.get('/api/reports/:name', async (req, res) => {
 
 
 // ---- Portal: feed berita gabungan, halaman perusahaan, refresh ----
+// Lapis data yang ditampilkan: layer=mentah (news_items) | cleaned (news_cleaned) | relevan (default, news_relevant); raw=1 tetap berarti mentah
+const layerOf = (q) => (q.layer === 'cleaned' ? 'cleaned' : q.layer === 'mentah' || q.raw === '1');
 // Feed campuran semua perusahaan (atau satu perusahaan). filter: all|official|rumor|positive|risk|video; sort: mix|latest|relevant
 app.get('/api/news', async (req, res) => {
   try {
@@ -264,7 +285,7 @@ app.get('/api/news', async (req, res) => {
     // Semua filter opsional dan bisa dikombinasikan; lihat where() di src/news.js. raw=1: data mentah (semua hasil crawl).
     const f = {
       company: q.company, filter: q.filter || 'all', q: q.q, days: q.days === undefined ? 30 : Number(q.days), platform: q.platform, kind: q.kind, tier: q.tier,
-      impact: q.impact, category: q.category, sentiment: q.sentiment, riskMin: q.risk_min, riskCat: q.risk_cat, related: q.related, ai: q.ai, source: q.source, raw: q.raw === '1',
+      impact: q.impact, category: q.category, sentiment: q.sentiment, riskMin: q.risk_min, riskCat: q.risk_cat, related: q.related, ai: q.ai, source: q.source, raw: layerOf(q),
     };
     const [items, counts, total, platforms] = await Promise.all([
       listNews({ ...f, sort: q.sort || 'mix', limit: q.limit, offset: q.offset }), newsCounts(f), newsTotal(f), platformCounts({ company: f.company, q: f.q, days: f.days, raw: f.raw }),
@@ -273,9 +294,13 @@ app.get('/api/news', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/news/layers', async (_req, res) => {
+  try { res.json(await layerCounts()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Pilihan dropdown filter beserta jumlahnya
 app.get('/api/news/facets', async (req, res) => {
-  try { res.json(await newsFacets({ company: req.query.company, days: req.query.days === undefined ? 30 : Number(req.query.days), raw: req.query.raw === '1' })); }
+  try { res.json(await newsFacets({ company: req.query.company, days: req.query.days === undefined ? 30 : Number(req.query.days), raw: layerOf(req.query) })); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -288,7 +313,7 @@ app.post('/api/assistant', async (req, res) => {
     const hits = (chatHits.get(ip) || []).filter((t) => now - t < 10 * 60 * 1000);
     if (hits.length >= 20) return res.status(429).json({ error: 'Terlalu banyak pertanyaan. Coba lagi beberapa menit lagi.' });
     hits.push(now); chatHits.set(ip, hits);
-    const parseCx = (x) => (x && x.type === 'company' && /^[\w.-]{1,60}$/.test(String(x.companyId || '')) ? { type: 'company', companyId: String(x.companyId) } : x && x.type === 'news' && Number.isInteger(Number(x.newsId)) ? { type: 'news', newsId: Number(x.newsId) } : x && x.type === 'home' ? { type: 'home' } : null);
+    const parseCx = (x) => (x && x.type === 'company' && /^[w.-]{1,60}$/.test(String(x.companyId || '')) ? { type: 'company', companyId: String(x.companyId) } : x && x.type === 'news' && Number.isInteger(Number(x.newsId)) ? { type: 'news', newsId: Number(x.newsId) } : x && x.type === 'home' ? { type: 'home' } : null);
     const raw = Array.isArray(req.body?.messages) ? req.body.messages.slice(-8) : [];
     const messages = raw.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string' && m.content.trim()).map((m) => ({ role: m.role, content: m.content.slice(0, 1200), cx: parseCx(m.cx) }));
     if (!messages.length || messages.at(-1).role !== 'user') return res.status(400).json({ error: 'pertanyaan kosong' });
@@ -312,17 +337,17 @@ app.get('/api/news/:id(\\d+)', async (req, res) => {
 // Buka artikel asli satu berita. Tautan Google News diselesaikan langsung ke alamat penerbit asli.
 app.get('/go/:id(\\d+)', async (req, res) => {
   try {
-    const [[r]] = await db().query('SELECT id, url, title, snippet, source_domain, source_name, article_url FROM news_items WHERE id = ?', [Number(req.params.id)]);
+    const [[r]] = await db().query('SELECT id, found_url AS url, title, snippet, source_domain, source_name, article_url FROM news_items WHERE id = ?', [Number(req.params.id)]);
     if (!r) return res.status(404).send('berita tidak ditemukan');
     if (r.article_url && !isGoogleNewsUrl(r.article_url)) return res.redirect(302, r.article_url);
     if (!isGoogleNewsUrl(r.url)) return res.redirect(302, r.url);
 
     const art = await resolveArticleUrl(r);
-    if (art && !isGoogleNewsUrl(art)) {
-      await db().query('UPDATE news_items SET article_url = ?, url = ?, link_error = NULL WHERE id = ?', [art, art, r.id]).catch(() => {});
+    if (art && !isGoogleNewsUrl(art) && !/^https?:[/][/](www[.])?google[.]com[/]search/i.test(art)) {
+      await db().query('UPDATE news_items SET article_url = ?, link_error = NULL WHERE id = ?', [art, r.id]).catch(() => {});
       return res.redirect(302, art);
     }
-    return res.redirect(302, art || `https://www.google.com/search?q=${encodeURIComponent(r.title || '')}`);
+    return res.status(404).send('Tautan artikel penerbit asli belum tersedia atau tidak dapat diakses.');
   } catch { res.status(500).send('gagal membuka artikel'); }
 });
 
@@ -345,9 +370,9 @@ app.post('/api/news/images', async (req, res) => {
 });
 
 // Daftar perusahaan + ringkasan sinyal masing-masing (sidebar / portofolio)
-app.get('/api/portfolio', async (_req, res) => {
+app.get('/api/portfolio', async (req, res) => {
   try {
-    const [companies, stats, risks] = await Promise.all([listCompanies(), companyNewsStats(30), latestRiskProfiles()]);
+    const [companies, stats, risks] = await Promise.all([listCompanies(), companyNewsStats(30, layerOf(req.query)), latestRiskProfiles()]);
     res.json(companies.map((c) => ({ ...c, risk: risks[c.id] || null, stats: stats[c.id] || { total: 0, official: 0, rumor: 0, positive: 0, risk: 0, latest: null } })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -381,7 +406,7 @@ app.get('/api/company/:id/overview', async (req, res) => {
         }
       } catch (e) { financialError = e.message; }
     }
-    const [counts, stats] = await Promise.all([newsCounts({ company: company.id }), companyNewsStats(30)]);
+    const [counts, stats] = await Promise.all([newsCounts({ company: company.id, raw: layerOf(req.query) }), companyNewsStats(30, layerOf(req.query))]);
     const st = stats[company.id] || { total: 0, official: 0, rumor: 0, positive: 0, risk: 0 };
     res.json({ company, financial, financialError, counts, stats: st, narrative: buildNarrative({ company, financial, stats: st }) });
   } catch (e) { res.status(500).json({ error: e.message }); }

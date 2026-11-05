@@ -1,4 +1,5 @@
 // Klien MCP: menjalankan MCP Toolbox (Google) sebagai proses anak lewat stdio dan memanggil alat-alatnya (mcp/tools.yaml).
+// Klien MCP: menjalankan MCP Toolbox (Google) sebagai proses anak lewat stdio dan memanggil alat-alatnya (mcp/tools.yaml).
 // KEAMANAN
 //  * Biner TIDAK dijalankan sebelum SHA-256-nya cocok dengan hash yang sudah diverifikasi (rilis resmi v1.15.0 = hash di halaman rilis GitHub = hash di paket npm,
 //    tanda tangan digital Google LLC valid). Bila berbeda (mis. paket diganti), server MCP menolak dijalankan.

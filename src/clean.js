@@ -1,3 +1,5 @@
+import { credibilityOf } from './credibility.js';
+
 const PLATFORM_BY_HOST = [
   [/(^|\.)(x|twitter)\.com$/, 'X'],
   [/reddit\.com$/, 'Reddit'],
@@ -74,6 +76,16 @@ function addVia(item, r) {
   if (item.via.length < 10 && !item.via.some((x) => x.src === v.src && x.q === v.q)) item.via.push(v);
 }
 
+const credScore = (it) => credibilityOf(it.sourceUrl || it.url).score ?? 0;
+const hostOf = (u) => { try { const h = new URL(u).hostname.replace(/^www[.]/, ''); return /(^|[.])google[.]com$/.test(h) ? null : h; } catch { return null; } };
+const ALSO_SEEN_MAX = 30;
+// Catatan untuk berita yang dibuang karena judulnya sama/mirip: media apa, judul versi mereka, golongan dan skor sumber. Ikut ke tahap simpan (tabel news_also).
+// Domain dibaca dari sumber RSS (tautan hasil pencarian umumnya masih tautan Google News, jadi belum alamat penerbit).
+function alsoOf(it) {
+  const c = credibilityOf(it.sourceUrl || it.url);
+  return { domain: hostOf(it.sourceUrl) || hostOf(it.url), url: it.url, title: it.title, tier: c.key || null, score: c.score ?? null, at: new Date().toISOString().slice(0, 19).replace('T', ' ') };
+}
+
 export function cleanItems(raw) {
   const stats = { input: raw.length, invalid: 0, spam: 0, duplicate: 0 };
   const byUrl = new Map();
@@ -100,12 +112,6 @@ export function cleanItems(raw) {
     }
     const tk = tokens(text);
     const near = kept.find((k) => jaccard(tk, k._tokens) > 0.8);
-    if (near) {
-      if (!near.matchedKeywords.includes(r.keyword)) near.matchedKeywords.push(r.keyword);
-      addVia(near, r);
-      stats.duplicate++;
-      continue;
-    }
     const item = {
       id: kept.length + 1,
       platform: r.sourceName || platformOf(url),
@@ -115,9 +121,31 @@ export function cleanItems(raw) {
       date: normalizeDate(r.date),
       matchedKeywords: [r.keyword],
       sourceUrl: r.sourceUrl, image: r.image,
+      originalUrl: r.originalUrl || undefined,                       // tautan awal dari hasil pencarian (mis. tautan Google News)
+      canonical: canonicalUrl(r.originalUrl || r.url),                // dasar hash duplikat: SELALU alamat awal, bukan alamat penerbit hasil resolve
       via: [],
+      alsoSeen: [],                                                   // media lain yang memuat berita yang sama (duplikat yang dibuang di tahap ini)
       _tokens: tk,
     };
+    if (near) {
+      stats.duplicate++;
+      // Judul sama/mirip dari penerbit LEBIH KREDIBEL menggantikan yang sudah ada (domain dibaca dari sumber RSS atau tautannya); selain itu yang pertama dipertahankan.
+      if (credScore(item) > credScore(near)) {
+        item.id = near.id;
+        item.alsoSeen = [...near.alsoSeen, alsoOf(near)].slice(0, ALSO_SEEN_MAX);
+        item.matchedKeywords = [...new Set([...near.matchedKeywords, r.keyword])];
+        item.via = near.via;
+        addVia(item, r);
+        kept[kept.indexOf(near)] = item;
+        for (const [k, v] of byUrl) if (v === near) byUrl.delete(k);
+        byUrl.set(url, item);
+      } else {
+        if (!near.matchedKeywords.includes(r.keyword)) near.matchedKeywords.push(r.keyword);
+        addVia(near, r);
+        if (near.alsoSeen.length < ALSO_SEEN_MAX && !near.alsoSeen.some((e) => e.url === item.url)) near.alsoSeen.push(alsoOf(item));
+      }
+      continue;
+    }
     addVia(item, r);
     byUrl.set(url, item);
     kept.push(item);

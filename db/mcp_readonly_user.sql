@@ -11,8 +11,8 @@ CREATE USER IF NOT EXISTS 'mcp_ro'@'localhost' IDENTIFIED BY 'GANTI_PASSWORD_INI
   WITH MAX_USER_CONNECTIONS 3;                -- ganti 'localhost' bila MCP berjalan dari host lain
 
 -- Data cleaned & ringkasan (pakai ini secara default)
+GRANT SELECT ON `media-search`.`news_relevant`       TO 'mcp_ro'@'localhost';   -- lapis relevan (dipakai alat MCP)
 GRANT SELECT ON `media-search`.`news_cleaned`        TO 'mcp_ro'@'localhost';
-GRANT SELECT ON `media-search`.`v_news`              TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`v_company_overview`  TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`risk_profiles`       TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`company_analyses`    TO 'mcp_ro'@'localhost';
@@ -20,11 +20,12 @@ GRANT SELECT ON `media-search`.`financial_snapshots` TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`companies`           TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`stakeholders`        TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`company_dossiers`    TO 'mcp_ro'@'localhost';   -- dossier korporasi 4 bagian (pemilik, klien, akta, fasilitas bank) + rujukan berita
+GRANT SELECT ON `media-search`.`news_also`           TO 'mcp_ro'@'localhost';   -- media lain yang memuat berita yang sama (duplikat yang tidak disimpan sebagai berita sendiri)
+GRANT SELECT ON `media-search`.`app_help`            TO 'mcp_ro'@'localhost';   -- isi halaman Bantuan (alat bantuan_aplikasi); diisi oleh scripts/db-add-help.js dari public/help.html
 
 -- Data mentah (semua hasil crawl, termasuk yang tidak terkait). Hapus 2 baris ini bila chatbot tidak perlu menelusurinya.
 -- Catatan: news_items memuat isi artikel lengkap (content_html), kolom hasil AI (ai_summary, company_role, risk_tags, ...), dan alamat artikel asli (article_url).
 GRANT SELECT ON `media-search`.`news_items`          TO 'mcp_ro'@'localhost';
-GRANT SELECT ON `media-search`.`v_news_raw`          TO 'mcp_ro'@'localhost';
 
 -- Tabel/VIEW baru di masa depan TIDAK otomatis terbuka (sengaja): tambahkan satu baris GRANT SELECT per objek di sini, lalu jalankan ulang skrip ini
 -- (aman dijalankan berulang; password user yang sudah ada tidak berubah. Untuk mengganti password: ALTER USER 'mcp_ro'@'localhost' IDENTIFIED BY '...';).

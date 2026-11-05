@@ -15,6 +15,7 @@ Aturan keras:
 - Tiap berita punya "ringkasan" (hasil AI atas isi artikel), "peran_perusahaan" (subjek/pihak_terlibat/disebut_sekilas/pihak_lain) dan, untuk berita teratas, "isi" (kutipan artikel). Gunakan isi untuk menemukan nama pengurus, pemegang saham, perubahan akta, nilai, tanggal, dan status perkara. Berita "disebut_sekilas"/"pihak_lain" jangan dijadikan faktor risiko debitur.
 - Dilarang memakai pengetahuan di luar data. Jangan mengarang angka, nama, tanggal, atau peristiwa. Bila data tidak cukup, katakan "data tidak cukup" dan turunkan "keyakinan".
 - Setiap poin wajib punya "dasar": kutip angka dari DATA KEUANGAN atau rujuk nomor berita seperti [3]. Tanpa dasar, jangan tulis poinnya.
+- Tiap berita punya "jenis" (berita/resmi/persepsi_publik). Berita jenis persepsi_publik (surat pembaca, keluhan satu pengguna, blog, forum, medsos) adalah cerita satu pihak: JANGAN jadikan faktor risiko utama atau dasar rating, cukup sebut sebagai sinyal persepsi bila banyak dan konsisten, dan tulis jelas bahwa itu keluhan/opini.
 - Berita rumor/belum terverifikasi harus disebut rumor, bukan fakta. Waspadai berita yang tidak menyangkut debitur itu sendiri (pihak lain bernama mirip, peringatan penipuan untuk konsumen).
 - PROFIL RISIKO (aturan) sudah menghitung rating. "rating_risiko" harus sama dengan rating profil kecuali kamu punya dasar kuat; bila beda, jelaskan di "ringkasan".
 - "temuan_deed" hanya berisi hal tentang pengurus, pemegang saham, pengendali, perubahan akta/korporasi, atau pihak afiliasi yang disebut data. Kosongkan bila tidak ada.
@@ -53,12 +54,12 @@ export async function generateAnalysis(company, financial, signal) {
   // Ringkasan AI, peran perusahaan, dan kutipan isi artikel diambil dari DB (isi hanya untuk ISI_TOP berita teratas agar token terkendali).
   const ISI_TOP = 10, ISI_CHARS = 700;
   const ids = refs.slice(0, 22).map((r) => r.id).filter(Boolean);
-  const [extra] = ids.length ? await db().query('SELECT id, ai_summary, company_role, snippet, content_html FROM news_items WHERE id IN (?)', [ids]) : [[]];
+  const [extra] = ids.length ? await db().query('SELECT id, ai_summary, company_role, content_kind, snippet, content_html FROM news_items WHERE id IN (?)', [ids]) : [[]];
   const byId = new Map(extra.map((e) => [e.id, e]));
   const newsPayload = refs.slice(0, 22).map((r, i) => {
     const e = byId.get(r.id) || {};
     const isi = i < ISI_TOP ? (htmlToText(e.content_html) || e.snippet || '').slice(0, ISI_CHARS) : '';
-    return { n: r.n, judul: r.title, sumber: r.source, tanggal: String(r.date).slice(0, 10), tag_risiko: r.tag, peran_perusahaan: e.company_role || undefined, menyebut_nama_perusahaan_di_judul: r.langsung, kategori: r.kategori, dampak: r.dampak, ringkasan: e.ai_summary || undefined, isi: isi || undefined };
+    return { n: r.n, judul: r.title, sumber: r.source, tanggal: String(r.date).slice(0, 10), tag_risiko: r.tag, peran_perusahaan: e.company_role || undefined, jenis: e.content_kind || undefined, menyebut_nama_perusahaan_di_judul: r.langsung, kategori: r.kategori, dampak: r.dampak, ringkasan: e.ai_summary || undefined, isi: isi || undefined };
   });
   const profileDigest = {
     rating: profile.rating, skor_total: profile.score,

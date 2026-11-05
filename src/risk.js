@@ -18,8 +18,12 @@ export const CATEGORIES = {
 export const maxSeverity = (tags) => tags.reduce((m, t) => Math.max(m, t.severity), 0);
 
 // ─── Profil risiko perusahaan ──────────────────────────
-const CRED_W = { official: 1.2, mainstream: 1.0, social_forum: 0.5 };
+const CRED_W = { official: 1.2, mainstream: 1.0, corporate: 0.7, aggregator: 0.6, social_forum: 0.5 };
 const recencyW = (days) => (days <= 7 ? 1 : days <= 30 ? 0.8 : days <= 90 ? 0.5 : 0.3);
+// Jalan tengah untuk sumber non-kredibel (medsos, forum, agregator, situs perusahaan): tetap dihitung, tetapi bila SATU kategori hanya didukung sumber seperti itu
+// (tanpa media resmi/massa dan tanpa data keuangan), kontribusinya dibatasi UNVERIFIED_CAP poin. Begitu ada sumber kredibel di kategori yang sama, tidak ada batas.
+const CREDIBLE = new Set(['official', 'mainstream']);
+const UNVERIFIED_CAP = 3;
 const MAX_ITEMS_PER_CAT = 4;      // banyak artikel untuk satu peristiwa tidak boleh menggelembungkan skor
 const saturate = (x, k) => Math.round(100 * (1 - Math.exp(-x / k)));
 const CAT_K = 12, TOTAL_K = 28;   // makin besar = makin lambat menjenuh
@@ -116,12 +120,18 @@ export function buildRiskProfile({ company, financial, news }) {
   for (const f of fin) cats[f.cat].items.push({ ...f, finance: true });
 
   let total = 0;
+  const capped = [];
   const categories = {};
   const factors = [];
   for (const [k, c] of Object.entries(cats)) {
     c.items.sort((a, b) => b.points - a.points);
     const used = c.items.slice(0, MAX_ITEMS_PER_CAT);
-    const sum = used.reduce((s, x) => s + x.points, 0);
+    let sum = used.reduce((s, x) => s + x.points, 0);
+    const corroborated = c.items.some((x) => x.finance || CREDIBLE.has(x.tier));
+    if (!corroborated && c.items.length) {
+      for (const x of used) x.unverified = true;
+      if (sum > UNVERIFIED_CAP) { const ratio = UNVERIFIED_CAP / sum; for (const x of used) x.points *= ratio; sum = UNVERIFIED_CAP; capped.push(CATEGORIES[k].label); }
+    }
     total += sum;
     categories[k] = { label: CATEGORIES[k].label, score: saturate(sum, CAT_K), count: c.items.length, topSeverity: Math.max(0, ...c.items.map((x) => x.severity || 0)) };
     for (const x of used) factors.push({ category: k, ...x });
@@ -139,11 +149,12 @@ export function buildRiskProfile({ company, financial, news }) {
   else if (unassessed) caveats.push(unassessed + ' dari ' + news.length + ' berita belum dinilai AI sehingga tidak dihitung dalam skor ini. Jalankan "Klasifikasi ulang" di Task Runner.');
   if (company.type !== 'public') caveats.push('Perusahaan tertutup: tidak ada laporan keuangan publik. Rating hanya dari berita; wajib melengkapi dengan dokumen keuangan debitur.');
   if (!(company.stakeholders || []).length) caveats.push('Belum ada data pengurus/pemegang saham. Tambahkan dari akta agar pencarian berita mencakup nama mereka (deed discovery).');
+  if (capped.length) caveats.push('Kategori ' + capped.join(', ') + ' baru didukung sumber non-kredibel (medsos/forum/agregator/situs perusahaan): kontribusinya ke skor dibatasi sampai ada media atau sumber resmi yang memuatnya.');
   caveats.push('Indikator awal dari informasi publik (tag risiko dinilai AI dari isi berita, skor dihitung dengan rumus tetap); bukan keputusan kredit dan wajib diverifikasi ke sumber.');
   return {
     score, rating: rating.key, ratingLabel: rating.label, categories,
     factors: factors.sort((a, b) => b.points - a.points), checklist, caveats,
     coverage: { newsItems: news.length, assessed: assessed.length, unassessed, hasFinancial: Boolean(financial), tagged: news.filter((n) => (n.risk_level || 0) > 0).length },
-    method: 'Poin berita = tingkat tag (1-5) × bobot kredibilitas (resmi 1,2; media 1,0; medsos 0,5) × bobot kebaruan (≤7h 1,0; ≤30h 0,8; ≤90h 0,5) × 0,6 bila rumor × bobot peran perusahaan menurut AI (fokus utama 1; ikut terlibat 0,8; disebut sekilas 0,25; pihak lain 0) × bobot sentimen AI (negatif 1; netral 0,4; positif tidak dihitung; kepemilikan selalu 0,35). Hanya berita yang sudah dinilai AI yang dihitung. Maksimal 4 bukti per kategori. Skor kategori = 100·(1−e^(−Σpoin/12)); skor total = 100·(1−e^(−Σ/28)). Rating: <20 Rendah, <45 Sedang, <70 Tinggi, selebihnya Sangat tinggi.',
+    method: 'Poin berita = tingkat tag (1-5) × bobot kredibilitas (resmi 1,2; media 1,0; situs perusahaan 0,7; agregator 0,6; medsos 0,5; kategori yang hanya didukung sumber non-kredibel dibatasi 3 poin) × bobot kebaruan (≤7h 1,0; ≤30h 0,8; ≤90h 0,5) × 0,6 bila rumor × bobot peran perusahaan menurut AI (fokus utama 1; ikut terlibat 0,8; disebut sekilas 0,25; pihak lain 0) × bobot sentimen AI (negatif 1; netral 0,4; positif tidak dihitung; kepemilikan selalu 0,35). Hanya berita yang sudah dinilai AI yang dihitung. Maksimal 4 bukti per kategori. Skor kategori = 100·(1−e^(−Σpoin/12)); skor total = 100·(1−e^(−Σ/28)). Rating: <20 Rendah, <45 Sedang, <70 Tinggi, selebihnya Sangat tinggi.',
   };
 }

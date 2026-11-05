@@ -1,6 +1,6 @@
-/* Suara robot untuk asisten AI dan tur: memakai Web Speech API bawaan browser (tanpa server, tanpa biaya, tanpa mengirim teks ke luar).
+/* Suara asisten AI dan tur (natural, bukan efek robot): memakai Web Speech API bawaan browser (tanpa server, tanpa biaya, tanpa mengirim teks ke luar).
    window.msVoice.speak(teks) membacakan teks; .stop(); .enabled / .setEnabled(bool) = bisukan (tersimpan). Suara dipilih bahasa Indonesia bila tersedia
-   (nada direndahkan agar terdengar seperti robot); bila tidak ada, memakai suara bawaan. Peristiwa 'ms-voice' {speaking} dipakai untuk menganimasikan robot. */
+   (suara "Natural"/online lebih dulu karena paling mulus; nada normal, tanpa efek yang membuat suara pecah); bila tidak ada, memakai suara bawaan. Peristiwa 'ms-voice' {speaking} dipakai untuk menganimasikan robot. */
 (() => {
   'use strict';
   const LS = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch { return null; } };
@@ -13,6 +13,7 @@
   // Teks layar -> teks ucapan: buang markdown, tautan, nomor rujukan; eja singkatan agar terdengar jelas
   function clean(t) {
     return String(t || '')
+      .replace(/^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/gm, '').replace(/\s*\|\s*/g, ', ')      // tabel: buang baris pemisah, pembatas kolom dibaca sebagai jeda
       .replace(/https?:\/\/\S+/g, ' ').replace(/\[\d+\]/g, ' ').replace(/[*_`#>]+/g, ' ')
       .replace(/^\s*[-•]\s+/gm, ', ').replace(/→/g, ' lalu ').replace(/\s*\n+\s*/g, '. ')
       .replace(/\bAI\b/g, 'A I').replace(/\bFAP\b/g, 'F A P').replace(/\bUBO\b/g, 'U B O').replace(/\bPSP\b/g, 'P S P').replace(/\bDER\b/g, 'D E R').replace(/\bOJK\b/g, 'O J K')
@@ -28,7 +29,7 @@
   }
   function pickVoice() {
     const vs = synth.getVoices();
-    return vs.find((v) => /^id[-_]/i.test(v.lang) && /google|online|natural/i.test(v.name)) || vs.find((v) => /^id[-_]/i.test(v.lang)) || vs.find((v) => /^ms[-_]/i.test(v.lang)) || null;
+    return vs.find((v) => /^id[-_]/i.test(v.lang) && /natural/i.test(v.name)) || vs.find((v) => /^id[-_]/i.test(v.lang) && /google|online/i.test(v.name)) || vs.find((v) => /^id[-_]/i.test(v.lang)) || vs.find((v) => /^ms[-_]/i.test(v.lang)) || null;
   }
 
   const api = {
@@ -48,7 +49,7 @@
         if (i >= list.length) { emit(false); return; }
         const u = new SpeechSynthesisUtterance(list[i++]);
         u.lang = voice?.lang || 'id-ID'; if (voice) u.voice = voice;
-        u.rate = 0.98; u.pitch = 0.55; u.volume = 1;            // nada rendah = kesan robot
+        u.rate = 1; u.pitch = 1; u.volume = 1;                  // nada & kecepatan normal: nada rendah (<0.8) membuat suara pecah "brbrbr"
         u.onstart = () => { if (my === token) emit(true); };
         u.onend = next; u.onerror = () => { if (my === token) emit(false); };
         synth.speak(u);

@@ -11,8 +11,8 @@ const NW_ROLE_HINT = { subjek: 'Peristiwa utama berita ini tentang perusahaan.',
 const NW_MOD = { none: 'Polos (nama saja)', isu: 'Isu / kabar', viral: 'Viral', kontroversi: 'Kontroversi', keluhan: 'Keluhan publik', rumor: 'Rumor' };
 const NW_KIND = { resmi: 'Resmi', berita: 'Berita', persepsi_publik: 'Persepsi publik', konsumen: 'Konten konsumen (disaring)' };
 const NW_PLAT = { berita: 'Media massa', blog: 'Blog & forum', sosmed: 'Media sosial', video: 'Video', resmi: 'Sumber resmi' };
-const NW_TIER = { official: 'Sumber resmi (instansi/bursa)', mainstream: 'Media massa', social_forum: 'Media sosial / forum' };
-const NW_INFO = { fakta: 'Fakta (dilaporkan sumber kredibel)', rumor: 'Rumor (belum terverifikasi)', opini: 'Opini / keluhan', tidak_jelas: 'Belum jelas' };
+const NW_TIER = { official: 'Sumber resmi (instansi/bursa)', mainstream: 'Media massa / situs berita umum', corporate: 'Situs perusahaan / komersial', aggregator: 'Agregator / non-redaksi', social_forum: 'Media sosial / forum' };
+const NW_INFO = { fakta: 'Fakta (ditulis sebagai fakta oleh sumbernya)', rumor: 'Rumor (belum terverifikasi)', opini: 'Opini / keluhan', tidak_jelas: 'Belum jelas' };
 const NW_SENT = { positif: 'Positif', netral: 'Netral', negatif: 'Negatif' };
 const AI_MINI = '<span class="ai-mini" title="Dihasilkan oleh AI yang membaca isi artikel">✦ AI</span>';
 const fmtDT = (v) => (v ? new Date(v).toLocaleString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
@@ -30,21 +30,27 @@ function nwSafeBody(html) {
 function linkStatus(d) {
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return '–'; } };
   const google = /^https:\/\/news\.google\.com\//.test(d.url || '');
-  if (d.article_url && d.content_html) return '<span class="tag t-green">Terverifikasi</span> sistem berhasil membuka artikel di ' + esc(host(d.article_url)) + ' dan membaca isinya.';
+  if (d.article_url && d.content_html) return '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membuka artikel di ' + esc(host(d.article_url)) + ' dan membaca isinya. Ini hanya menunjukkan tautannya hidup, bukan bahwa isinya benar.';
   if (d.article_url) return '<span class="tag t-amber">Alamat asli ditemukan</span> ' + esc(host(d.article_url)) + (d.link_error === 'isi_tidak_terbaca' || !d.content_html ? ', tetapi isinya belum berhasil dibaca (situs menolak akses, berbayar, atau tanpa teks).' : '.');
-  if (google) return '<span class="tag t-amber">Belum terverifikasi</span> ini tautan pengalihan Google News. ' + (d.link_error === 'decode_429' ? 'Alamat penerbit belum bisa dicari karena Google sedang membatasi permintaan; dicoba lagi saat Anda menekan "Baca artikel asli" atau lewat "Lengkapi data tersimpan".' : d.link_error === 'decode_gagal' ? 'Tautan ini tidak dapat didekode.' : 'Alamat penerbitnya dicari saat Anda menekan "Baca artikel asli".');
-  return d.content_html ? '<span class="tag t-green">Terverifikasi</span> sistem berhasil membaca isinya.' : '<span class="tag t-amber">Belum terverifikasi</span> isi artikel belum berhasil dibaca.';
+  if (google) return '<span class="tag t-amber">Belum dibuka</span> ini tautan pengalihan Google News. ' + (d.link_error === 'decode_429' ? 'Alamat penerbit belum bisa dicari karena Google sedang membatasi permintaan; dicoba lagi saat Anda menekan "Baca artikel asli" atau lewat "Lengkapi data tersimpan".' : d.link_error === 'decode_gagal' ? 'Tautan ini tidak dapat didekode.' : 'Alamat penerbitnya dicari saat Anda menekan "Baca artikel asli".');
+  return d.content_html ? '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membaca isinya (bukan jaminan isinya benar).' : '<span class="tag t-amber">Belum dibuka</span> isi artikel belum berhasil dibaca.';
 }
 
+// Tiga lapis data: MENTAH (semua hasil crawl) -> CLEANED (alamat penerbit valid, bukan konten konsumen) -> RELEVAN (dinilai AI relevan).
+// Relevan juga mensyaratkan isi cukup panjang (berita 500 karakter, caption sosmed/video 80). Yang ditampilkan di aplikasi = cleaned yang relevan menurut AI, ditambah cleaned yang belum dinilai AI tetapi teksnya menyebut nama perusahaan (sementara).
 function cleanedStatus(d) {
-  if (d.content_kind === 'konsumen') return ['t-gray', 'Tidak masuk data cleaned', 'Disaring: AI menilai isinya konten tutorial/promo/lowongan konsumen.'];
+  const addr = d.article_url || d.found_url || d.url || '';
+  if (!d.article_url && /^https:\/\/(news\.google\.com|(www\.)?google\.com\/search)/i.test(addr)) return ['t-gray', 'Mentah (belum cleaned)', 'Alamat asli di situs penerbit belum ditemukan, jadi belum dikirim ke AI dan belum tampil di data cleaned.'];
+  if (d.content_kind === 'konsumen') return ['t-gray', 'Mentah (disaring)', 'Disaring: AI menilai isinya konten tutorial/promo/lowongan konsumen.'];
   if (d.ai_status === 'ok') {
+    if (d.relevant === 1 && !d.company_role) return ['t-amber', 'Cleaned, perlu dinilai ulang AI', 'AI (format penilaian lama) menandai berita ini relevan tetapi tanpa peran perusahaan, jadi belum masuk Relevan dan tidak dihitung dalam rating. Jalankan "Klasifikasi AI ulang" di Task Runner.'];
+    if (d.relevant === 1 && d.stage === 1) return ['t-amber', 'Cleaned, isi terlalu pendek', 'AI menilai relevan, tetapi isi yang tersimpan kurang dari batas minimum (berita 500 karakter, caption sosmed/video 80 karakter), jadi belum masuk data relevan. Jalankan "Lengkapi data tersimpan" untuk mengambil isinya.'];
     return d.relevant === 1
-      ? ['t-green', 'Masuk data cleaned', 'AI menilai berita ini relevan dengan perusahaan.']
-      : ['t-gray', 'Tidak masuk data cleaned', 'Disaring: AI menilai tidak relevan dengan perusahaan.'];
+      ? ['t-green', 'Relevan (dinilai AI)', 'Cleaned dan AI menilai berita ini relevan dengan perusahaan.']
+      : ['t-gray', 'Cleaned, tidak relevan (AI)', 'AI menilai berita ini tidak relevan dengan perusahaan, jadi tidak tampil.'];
   }
-  if (d.related === 1 && d.related_via === 'perusahaan') return ['t-amber', 'Belum dinilai AI', 'Tampil sementara karena teksnya menyebut nama/alias perusahaan.'];
-  return ['t-gray', 'Tidak masuk data cleaned', 'Belum dinilai AI dan teksnya tidak menyebut nama/alias perusahaan.'];
+  if (d.related === 1 && d.related_via === 'perusahaan') return ['t-amber', 'Cleaned, belum dinilai AI', 'Tampil sementara karena teksnya menyebut nama/alias perusahaan.'];
+  return ['t-gray', 'Cleaned, belum dinilai AI', 'Belum dinilai AI dan teksnya tidak menyebut nama/alias perusahaan, jadi belum tampil.'];
 }
 
 function renderNews(d) {
@@ -53,11 +59,35 @@ function renderNews(d) {
   const fav = d.source_domain ? '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(d.source_domain) + '&sz=32" width="16" height="16" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '';
 
   // ----- header -----
-  $('#nwTitle').textContent = d.title;
   $('#nwMeta').innerHTML = fav + '<b>' + esc(d.source_name || d.source_domain || 'Sumber') + '</b><span>·</span><span title="' + esc(fmtDT(d.published_at)) + '">' + esc(fmtDT(d.published_at)) + ' (' + esc(ago(d.published_at)) + ')</span>'
     + '<span>·</span><a class="co-pill" href="#/c/' + esc(d.company_id) + '" onclick="closeNews()">' + esc(d.company_ticker || d.company_name) + '</a>';
-  $('#nwOpen').href = safeUrl(artUrl(d));
-  $('#nwCopy').onclick = () => { const u = d.article_url || d.url; if (/^https:\/\/news\.google\.com\//.test(u)) return toast('Alamat penerbit belum diketahui. Tekan "Baca artikel asli" dulu untuk mencarinya.', 5000); navigator.clipboard?.writeText(u).then(() => toast('Tautan disalin.'), () => toast('Gagal menyalin tautan.')); };
+  const finalUrl = safeUrl(artUrl(d));
+  const exact = Boolean(finalUrl) && finalUrl !== '#' && !finalUrl.startsWith('/go/');
+  const openTip = exact ? 'Buka artikel asli di situs penerbit' : 'Alamat penerbit asli belum tersedia';
+
+  if (exact) {
+    $('#nwTitle').innerHTML = '<a class="nw-tl" href="' + esc(finalUrl) + '" target="_blank" rel="noopener" title="' + esc(openTip) + '">' + esc(d.title) + '</a>';
+    $('#nwOpen').style.display = '';
+    $('#nwOpen').href = finalUrl;
+    $('#nwOpen').textContent = 'Baca artikel asli ↗';
+    $('#nwOpen').title = openTip;
+    $('#nwOpen').classList.remove('disabled');
+  } else {
+    $('#nwTitle').innerHTML = '<span class="nw-tl" title="' + esc(openTip) + '">' + esc(d.title) + '</span>';
+    $('#nwOpen').removeAttribute('href');
+    $('#nwOpen').textContent = 'Alamat asli belum tersedia';
+    $('#nwOpen').title = openTip;
+    $('#nwOpen').classList.add('disabled');
+  }
+
+  $('#nwCopy').onclick = () => {
+    const u = exact ? finalUrl : (d.article_url || '');
+    if (!u || /^https:\/\/www\.google\.com\/search\?/i.test(u) || u === '#' || u.startsWith('/go/')) {
+      return toast('Alamat artikel penerbit belum tersedia.', 4000);
+    }
+    if (/^https:\/\/news\.google\.com\//.test(u)) return toast('Alamat penerbit belum diketahui.', 4000);
+    navigator.clipboard?.writeText(u).then(() => toast('Tautan disalin.'), () => toast('Gagal menyalin tautan.'));
+  };
 
   // ----- chip ringkas -----
   const chips = [];
@@ -68,7 +98,11 @@ function renderNews(d) {
     if (d.category === 'rumor') chips.push('<span class="tag t-amber">Rumor</span>');
   }
   if (d.credibility_tier === 'official') chips.push('<span class="tag t-green">✓ Sumber resmi</span>');
-  if (NW_PLAT[d.platform] && d.platform !== 'berita') chips.push('<span class="tag t-cyan">' + esc(NW_PLAT[d.platform]) + '</span>');
+  if (d.content_truncated) chips.push('<span class="tag t-amber" title="Isi artikel yang tersimpan berhenti di tengah (kemungkinan dibatasi penerbit/paywall). Buka artikel asli untuk membaca lengkap.">Isi terpotong</span>');
+  if (Array.isArray(d.juga_dimuat) && d.juga_dimuat.length) chips.push('<span class="tag t-cyan" title="Berita yang sama juga dimuat media lain (daftarnya di bagian bawah). Hanya satu yang disimpan sebagai berita.">Juga dimuat di ' + d.juga_dimuat.length + ' media</span>');
+  if (d.credibility_tier === 'corporate') chips.push('<span class="tag t-gray" title="Situs/siaran pers perusahaan atau situs komersial: bukan pihak ketiga yang independen.">Situs perusahaan</span>');
+  else if (d.credibility_tier === 'aggregator') chips.push('<span class="tag t-gray" title="Agregator/situs non-redaksi: periksa sumber aslinya.">Agregator</span>');
+  if (NW_PLAT[d.platform] && d.platform !== 'berita' && d.platform !== 'resmi') chips.push('<span class="tag t-cyan">' + esc(NW_PLAT[d.platform]) + '</span>');
 
   // ----- ringkasan AI -----
   const summary = assessed
@@ -79,7 +113,7 @@ function renderNews(d) {
   // ----- isi berita -----
   const body = nwSafeBody(d.content_html);
   const bodyHtml = body
-    ? '<div class="nw-text clamp" id="nwText">' + body + '</div><button type="button" class="nw-more" id="nwMore" hidden>Baca selengkapnya ▾</button>'
+    ? '<div class="nw-text clamp" id="nwText">' + body + '</div>' + (d.content_truncated ? '<div class="muted sm" style="margin-top:6px">⚠ Isi artikel tampak terpotong (kemungkinan dibatasi penerbit). Klik “Baca artikel asli” untuk versi lengkapnya.</div>' : '') + '<button type="button" class="nw-more" id="nwMore" hidden>Baca selengkapnya ▾</button>'
     : d.snippet ? '<div class="nw-text"><p>' + esc(d.snippet) + '</p></div><div class="sm dim" style="margin-top:6px">Hanya cuplikan. Isi lengkap belum diambil; buka artikel asli untuk membacanya.</div>'
     : '<div class="muted sm">Tidak ada isi yang tersimpan. Buka artikel asli untuk membacanya.</div>';
 
@@ -109,6 +143,19 @@ function renderNews(d) {
     + cell('Skor kredibilitas', d.credibility_score == null ? '–' : d.credibility_score + ' / 100', 'Aturan tetap berdasarkan domain; mengukur jenis sumber, bukan kebenaran isi berita ini')
     + '</div></div>';
 
+  // ----- media lain yang memuat berita yang sama (duplikat yang ditolak atau digantikan; tidak disimpan sebagai berita sendiri) -----
+  const alsoList = Array.isArray(d.juga_dimuat) ? d.juga_dimuat : [];
+  const alsoBox = alsoList.length
+    ? '<div class="nw-sec"><h5>Juga dimuat di ' + alsoList.length + ' media lain</h5><div class="sm dim" style="margin-bottom:8px">Berita yang sama (judul sama atau mirip) dari penerbit lain. Hanya satu yang disimpan sebagai berita supaya tidak dihitung ganda; yang lain dicatat di sini.</div>'
+      + alsoList.map((e) => {
+        const ok = /^https?:\/\//i.test(e.url || '');
+        return '<div class="nw-also"><div>' + (ok ? '<a class="nw-lnk" href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.domain || e.url) + '</a>' : '<b>' + esc(e.domain || '–') + '</b>')
+          + ' <span class="tag t-gray">' + esc(NW_TIER[e.tier] || 'jenis sumber tidak tercatat') + (e.score != null ? ' · ' + esc(e.score) : '') + '</span>'
+          + (e.at ? ' <span class="sm muted">terlihat ' + esc(fmtDT(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(e.at) ? e.at.replace(' ', 'T') + 'Z' : e.at)) + '</span>' : '') + '</div>'
+          + (e.title ? '<div class="sm muted">“' + esc(e.title) + '”</div>' : '') + '</div>';
+      }).join('') + '</div>'
+    : '';
+
   // ----- detail teknis -----
   const [stCls, stLabel, stWhy] = cleanedStatus(d);
   const adapterNames = (d.adapters || []).map((a) => NW_SRC[a] || a).join(' + ');
@@ -128,13 +175,18 @@ function renderNews(d) {
     + nwRow('Terlihat di crawl', (d.seen_count || 1) + ' kali · pertama ' + esc(fmtDT(d.fetched_at)) + (d.last_seen_at ? ' · terakhir ' + esc(fmtDT(d.last_seen_at)) : ''))
     + nwRow('Platform / jenis', esc((NW_PLAT[d.platform] || d.platform) + ' / ' + (NW_KIND[d.content_kind] || d.content_kind)))
     + nwRow('Status AI', esc(d.ai_status) + (d.ai_error ? ' <span class="mono">' + esc(d.ai_error) + '</span>' : ''))
-    + nwRow('Status tautan', linkStatus(d)) + nwRow('ID berita', d.id) + nwRow('Tautan artikel', /^https:\/\/news\.google\.com\//.test(d.article_url || d.url) ? '<span class="muted">alamat penerbit belum diketahui</span>' : '<span class="mono">' + esc(d.article_url || d.url) + '</span>') + nwRow('Gambar', d.image_url ? '<span class="mono">' + esc(d.image_url) + '</span>' : '–')
+    + nwRow('Status tautan', linkStatus(d)) + nwRow('ID berita', d.id) + nwRow('Tautan artikel', exact ? '<a class="mono nw-lnk" href="' + esc(finalUrl) + '" target="_blank" rel="noopener">' + esc(finalUrl.startsWith('/go/') ? (d.article_url || d.url) : finalUrl) + '</a>' : '<span class="muted">alamat penerbit belum diketahui</span>') + nwRow('Gambar', d.image_url ? (/^https?:\/\//i.test(d.image_url) ? '<a class="mono nw-lnk" href="' + esc(d.image_url) + '" target="_blank" rel="noopener">' + esc(d.image_url) + '</a>' : '<span class="mono">' + esc(d.image_url) + '</span>') : '–')
     + '</div></details>';
 
   const img = d.image_url ? '<div class="nw-img"><img src="/img/' + d.id + '" alt="" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></div>' : '';
-  $('#nwBody').innerHTML = img + '<div class="nw-chips">' + chips.join('') + '</div>' + summary
-    + '<div class="nw-sec"><h5>Isi berita</h5>' + bodyHtml + '</div>' + findings + aiBox + srcBox + tech;
+  // tab per perusahaan: satu artikel yang relevan untuk beberapa perusahaan, penilaian AI-nya per perusahaan
+  const sib = Array.isArray(d.kembar) ? d.kembar : [];
+  const sibTabs = sib.length > 1 ? '<div class="nw-tabs" role="tablist" title="Artikel yang sama relevan untuk beberapa perusahaan::Isi artikelnya sama, tetapi penilaian AI (peran, dampak, temuan risiko) dihitung per perusahaan. Pilih tab untuk melihat penilaian tiap perusahaan."><span class="sm dim">Dinilai untuk:</span>'
+    + sib.map((c) => { const vis = typeof LAYER === 'undefined' || LAYER === 'mentah' || (LAYER === 'cleaned' ? c.stage >= 1 : c.stage === 2); return '<button type="button" class="nw-tab' + (c.id === d.id ? ' on' : '') + (vis ? '' : ' off') + '" role="tab" aria-selected="' + (c.id === d.id) + '" data-tab-nid="' + c.id + '" title="' + esc(c.company_name + ' · dampak: ' + (c.impact || 'belum dinilai AI') + (vis ? '' : ' · belum masuk lapis yang dipilih untuk perusahaan ini')) + '"><i style="background:' + (typeof IMP_DOT !== 'undefined' && IMP_DOT[c.impact] ? IMP_DOT[c.impact] : 'transparent') + '"></i>' + esc(c.label) + '</button>'; }).join('') + '</div>' : '';
+  $('#nwBody').innerHTML = sibTabs + img + '<div class="nw-chips">' + chips.join('') + '</div>' + summary
+    + '<div class="nw-sec"><h5>Isi berita</h5>' + bodyHtml + '</div>' + findings + aiBox + srcBox + alsoBox + tech;
   $('#nwBody').scrollTop = 0;
+  $('#nwBody').querySelectorAll('[data-tab-nid]').forEach((b) => { b.onclick = () => { if (Number(b.dataset.tabNid) !== d.id) openNews(Number(b.dataset.tabNid)); }; });
 
   // "Baca selengkapnya" hanya bila isinya memang lebih panjang dari kotaknya
   const tx = $('#nwText'), more = $('#nwMore');

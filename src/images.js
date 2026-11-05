@@ -7,7 +7,7 @@ import { extractContentFromUrl } from './extractor.js';
 
 export async function enrichByIds(ids, concurrency = 4) {
   if (!ids.length) return {};
-  const [rows] = await db().query('SELECT id, url FROM news_items WHERE id IN (?) AND image_url IS NULL AND image_checked = 0', [ids]);
+  const [rows] = await db().query('SELECT id, COALESCE(article_url, found_url) AS url FROM news_items WHERE id IN (?) AND image_url IS NULL AND image_checked = 0', [ids]);
   const out = {};
   let i = 0;
   async function worker() {

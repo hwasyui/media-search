@@ -62,14 +62,23 @@ export function htmlToText(html) {
 }
 export const parasToHtml = (paras) => paras.map((t) => '<p>' + escHtml(t) + '</p>').join('\n').slice(0, HTML_MAX);
 
+function isBlockedHtml(html) {
+  if (!html || html.length < 300) return true;
+  return html.includes('Just a moment...') ||
+         html.includes('challenge-running') ||
+         html.includes('Enable JavaScript and cookies') ||
+         html.includes('Your request was blocked') ||
+         html.includes('Access Denied') ||
+         html.includes('403 Forbidden');
+}
+
 // Unduh via native curl.exe untuk situs yang dilindungi Cloudflare / TLS fingerprinting
 async function fetchWithCurl(url) {
   try {
     const { stdout } = await execFileAsync('curl.exe', [
       '-s', '-L',
-      '--max-time', '6',
+      '--max-time', '8',
       '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
       '-H', 'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8',
       url,
     ], { maxBuffer: 5 * 1024 * 1024 });
@@ -104,7 +113,7 @@ async function fetchHtml(url) {
       });
       if (!res.ok || !/html|xml/i.test(res.headers.get('content-type') || 'text/html')) continue;
       const html = (await res.text()).slice(0, 1_500_000);
-      if (html.includes('Just a moment...') || html.includes('challenge-running') || html.includes('Enable JavaScript and cookies')) continue;
+      if (isBlockedHtml(html)) continue;
       return { html, url: res.url || url };
     } catch { /* coba UA berikutnya */ }
   }
@@ -112,7 +121,7 @@ async function fetchHtml(url) {
   // Percobaan 3: Native curl fallback jika node fetch di-challenge oleh Cloudflare
   try {
     const curlHtml = await fetchWithCurl(url);
-    if (curlHtml && !curlHtml.includes('Just a moment...') && !curlHtml.includes('challenge-running') && !curlHtml.includes('Enable JavaScript and cookies')) {
+    if (curlHtml && !isBlockedHtml(curlHtml)) {
       return { html: curlHtml.slice(0, 1_500_000), url };
     }
   } catch {}
@@ -120,7 +129,7 @@ async function fetchHtml(url) {
   // Percobaan 4: Headless Playwright untuk memecahkan Cloudflare Managed Challenge
   try {
     const browserHtml = await fetchWithBrowser(url);
-    if (browserHtml && !browserHtml.includes('Just a moment...') && !browserHtml.includes('challenge-running') && !browserHtml.includes('Enable JavaScript and cookies')) {
+    if (browserHtml && !isBlockedHtml(browserHtml)) {
       return { html: browserHtml.slice(0, 1_500_000), url };
     }
   } catch {}
@@ -153,34 +162,72 @@ export function pickImage(html, baseUrl) {
 
 // Ekstraksi paragraf bersih dari halaman artikel berita
 function extractArticleBody(html) {
+  // 1. Cek kandidat dari JSON-LD articleBody
+  let jsonLdParas = [];
+  for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const parsed = JSON.parse(m[1]);
+      const items = Array.isArray(parsed) ? parsed : parsed['@graph'] || [parsed];
+      for (const item of items) {
+        if (item && typeof item === 'object' && typeof item.articleBody === 'string') {
+          const body = item.articleBody.trim();
+          // Jika tidak berakhiran elipsis (… atau ...) dan cukup panjang
+          if (body.length >= 300 && !/[…\.]+\s*$/.test(body)) {
+            const raw = body
+              .split(/\n\s*\n|\r\n\r\n|\n/)
+              .map(p => p.trim())
+              .filter(p => p.length >= 25 && !/^(baca juga|simak juga|baca artikel|halaman selanjutnya|advertisement)/i.test(p));
+            if (raw.length >= 2 && raw.join(' ').length > jsonLdParas.join(' ').length) {
+              jsonLdParas = raw;
+            }
+          }
+        }
+      }
+    } catch { /* JSON-LD rusak: abaikan */ }
+  }
+
+  // 2. Ekstraksi dari DOM HTML dengan normalisasi tag
   let cleanHtml = html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
-    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
-    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ')
-    .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ')
-    .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, ' ');
+    .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<aside\b[\s\S]*?<\/aside>/gi, ' ')
+    .replace(/<footer\b[^>]*class=["'][^"']*(?:site|global|footer)[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi, ' ');
 
   const ogDesc = cleanHtml.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i)?.[1] ||
                  cleanHtml.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)?.[1] || '';
 
-  const containerMatch = cleanHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                         cleanHtml.match(/<div[^>]*class=["'][^"']*(?:detail-text|read__content|read__article|article__content|detail__body-text|post-content|entry-content|article-content|story-content|content-details|content-post|news-detail|detailsContent|content__article|main-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-  
-  const searchScope = (containerMatch ? containerMatch[1] : cleanHtml)
-    .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '</p><p>')
-    .replace(/<\/p>/gi, '</p>\n');
-
-  const paras = [];
-  const pRegex = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
-  let m;
-  while ((m = pRegex.exec(searchScope)) !== null) {
-    const rawP = m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (rawP.length >= 35 &&
-        !/^(baca juga|simak juga|baca disini|baca artikel|pilihan editor|artikel berlanjut setelah iklan|advertisement|halaman selanjutnya|halaman:|scroll to continue|redaksi|editor:|penulis:|kontributor:|\*\s*executive brief)/i.test(rawP)) {
-      paras.push(rawP);
+  // Helper untuk mengekstrak paragraf dari blok HTML
+  function getParagraphsFromScope(scopeHtml) {
+    const formatted = ('<p>' + (scopeHtml || '') + '</p>')
+      .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '</p><p>')
+      .replace(/<p\b([^>]*)>/gi, '</p><p$1>')
+      .replace(/<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>/gi, '</p><p>$1</p><p>')
+      .replace(/<div\b[^>]*style=["'][^"']*text-align:\s*(?:justify|left)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi, '</p><p>$1</p><p>')
+      .replace(/<\/p>/gi, '</p>\n');
+    const res = [];
+    const pRegex = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+    let match;
+    while ((match = pRegex.exec(formatted)) !== null) {
+      const rawP = match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (rawP.length >= 35 &&
+          !/^(baca juga|simak juga|baca disini|baca artikel|pilihan editor|artikel berlanjut setelah iklan|advertisement|halaman selanjutnya|halaman:|scroll to continue|redaksi|editor:|penulis:|kontributor:|\*\s*executive brief|cek berita dan artikel|download aplikasi|nyaman tanpa iklan|langganan bisnispro|pewarta\s*:|copyright\s*&copy;)/i.test(rawP)) {
+        res.push(rawP);
+      }
     }
+    return res;
+  }
+
+  // Ekstraksi paragraf dari kontainer & global
+  const globalParas = getParagraphsFromScope(cleanHtml);
+  let paras = globalParas;
+
+  // Bandingkan dengan hasil JSON-LD: pilih yang paling utuh/banyak teksnya
+  const domText = paras.join(' ');
+  const jsonLdText = jsonLdParas.join(' ');
+  if (jsonLdParas.length >= 2 && jsonLdText.length > domText.length) {
+    paras = jsonLdParas;
   }
 
   const fullText = paras.join('\n\n').slice(0, 3000);
@@ -223,34 +270,99 @@ export async function extractContentFromUrl(rawUrl, { title: fallbackTitle = '',
   // 2. Ekstraksi spesifik platform
   try {
     if (host.includes('youtube.com') || host.includes('youtu.be')) {
-      // YouTube: Endpoint oEmbed resmi untuk author kanal & thumbnail
-      try {
-        const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(targetUrl)}&format=json`, {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (oRes.ok) {
-          const j = await oRes.json();
-          author = j.author_name ? `${j.author_name}` : '';
-          image = j.thumbnail_url || null;
-          const ytTitle = j.title || fallbackTitle;
-          const ytSnippet = fallbackSnippet || ytTitle;
-          fullContent = ytSnippet;
-          snippet = (ytSnippet || ytTitle).slice(0, 400);
-          const paras = [];
-          if (author) paras.push(`Video oleh kanal: ${author}`);
-          if (ytTitle && ytTitle !== ytSnippet) paras.push(ytTitle);
-          if (ytSnippet) paras.push(ytSnippet);
-          contentHtml = parasToHtml(paras);
+      const vid = targetUrl.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/)?.[1];
+      let ytTitle = fallbackTitle || '';
+      let ytDesc = '';
+
+      if (vid) {
+        // 1. YouTube Innertube Player API (internal endpoint tanpa login, mengembalikan judul, author, dan DESKRIPSI LENGKAP)
+        try {
+          const pRes = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              context: { client: { clientName: 'WEB', clientVersion: '2.20250101.00.00', hl: 'id', gl: 'ID' } },
+              videoId: vid,
+            }),
+            signal: AbortSignal.timeout(6000),
+          });
+          if (pRes.ok) {
+            const pj = await pRes.json();
+            if (pj.videoDetails) {
+              if (pj.videoDetails.title) ytTitle = pj.videoDetails.title;
+              if (pj.videoDetails.author) author = pj.videoDetails.author;
+              ytDesc = pj.videoDetails.shortDescription || '';
+              if (pj.videoDetails.thumbnail?.thumbnails?.length) {
+                const thumbs = pj.videoDetails.thumbnail.thumbnails;
+                image = thumbs[thumbs.length - 1]?.url || image;
+              }
+            }
+          }
+        } catch {}
+
+        if (!image) {
+          image = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
         }
-      } catch {}
-      if (!image) {
-        const vid = targetUrl.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
-        if (vid) image = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
       }
-      if (!contentHtml && (fallbackSnippet || fallbackTitle)) {
-        fullContent = fallbackSnippet || fallbackTitle;
-        contentHtml = parasToHtml([fullContent]);
+
+      // 2. Jika author atau title belum diperoleh, coba oEmbed resmi
+      if (!author || !ytTitle) {
+        try {
+          const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(targetUrl)}&format=json`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (oRes.ok) {
+            const j = await oRes.json();
+            if (!author && j.author_name) author = j.author_name;
+            if (!ytTitle && j.title) ytTitle = j.title;
+            if (!image && j.thumbnail_url) image = j.thumbnail_url;
+          }
+        } catch {}
       }
+
+      // 3. Fallback jika deskripsi masih kosong: coba regex shortDescription dari watch HTML
+      if (!ytDesc && vid) {
+        try {
+          const res = await fetch(`https://www.youtube.com/watch?v=${vid}`, {
+            headers: {
+              'User-Agent': getRandomUa(),
+              'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            },
+            signal: AbortSignal.timeout(6000),
+          });
+          if (res.ok) {
+            const html = await res.text();
+            const m = html.match(/"shortDescription":\s*"((?:\\.|[^"\\])*)"/);
+            if (m) {
+              try {
+                ytDesc = JSON.parse(`"${m[1]}"`);
+              } catch {
+                ytDesc = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Susun paragraf konten
+      const paras = [];
+      if (author) paras.push(`Video oleh kanal: ${author}`);
+      if (ytTitle) paras.push(ytTitle);
+
+      if (ytDesc) {
+        // Deskripsi lengkap video YouTube (semua baris/paragraf tanpa terpotong)
+        const descLines = ytDesc.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
+        paras.push(...descLines);
+        fullContent = [ytTitle, ytDesc].filter(Boolean).join('\n\n');
+        snippet = fullContent.slice(0, 400);
+      } else {
+        const ytSnippet = fallbackSnippet || ytTitle;
+        if (ytSnippet && ytSnippet !== ytTitle) paras.push(ytSnippet);
+        fullContent = ytSnippet;
+        snippet = (ytSnippet || ytTitle).slice(0, 400);
+      }
+
+      contentHtml = parasToHtml(paras);
     } else if (host.includes('instagram.com') || host.includes('threads.net')) {
       // Instagram & Threads: Link preview bot (facebookexternalhit) bypass login wall dan mengambil caption penuh
       const res = await fetch(targetUrl, {
@@ -270,6 +382,27 @@ export async function extractContentFromUrl(rawUrl, { title: fallbackTitle = '',
         image = pickImage(html, targetUrl);
         const authorMatch = metaDesc.match(/-\s*([a-zA-Z0-9._]+)\s+on/i);
         if (authorMatch) author = '@' + authorMatch[1];
+      }
+
+      // Fallback Instagram embed/captioned/ (teknik Bughopper14)
+      if (!fullContent && host.includes('instagram.com')) {
+        const postCode = targetUrl.match(/(?:p|reel)\/([a-zA-Z0-9_-]+)/)?.[1];
+        if (postCode) {
+          try {
+            const embRes = await fetch(`https://www.instagram.com/p/${postCode}/embed/captioned/`, {
+              headers: { 'User-Agent': getRandomUa() },
+              signal: AbortSignal.timeout(5000),
+            });
+            if (embRes.ok) {
+              const embHtml = await embRes.text();
+              const capMatch = embHtml.match(/<div[^>]*class=["'][^"']*Caption[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+              if (capMatch) {
+                fullContent = decodeHtmlEntities(capMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+                snippet = fullContent.slice(0, 400);
+              }
+            }
+          } catch {}
+        }
       }
     } else if (host.includes('tiktok.com')) {
       // TikTok: Endpoint resmi oEmbed bebas auth
@@ -308,7 +441,22 @@ export async function extractContentFromUrl(rawUrl, { title: fallbackTitle = '',
       // Berita & Web Umum: header browser dengan User-Agent rotasi; bila ditolak, coba lagi sebagai crawler pratinjau tautan / curl native
       const page = /(^|\.)news\.google\.com$/.test(host) ? null : await fetchHtml(targetUrl);
       if (page) {
-        const extracted = extractArticleBody(page.html);
+        let extracted = extractArticleBody(page.html);
+
+        // Jika hasil ekstraksi HTML statis terlalu sedikit (kurang dari 250 karakter, misal situs SPA JS seperti MSN), ambil via headless Playwright
+        if ((!extracted.content || extracted.content.length < 250) && !/(^|\.)news\.google\.com$/.test(host)) {
+          try {
+            const browserHtml = await fetchWithBrowser(targetUrl);
+            if (browserHtml && !isBlockedHtml(browserHtml)) {
+              const bExtracted = extractArticleBody(browserHtml);
+              if (bExtracted.content && bExtracted.content.length > (extracted.content?.length || 0)) {
+                extracted = bExtracted;
+                page.html = browserHtml;
+              }
+            }
+          } catch {}
+        }
+
         fullContent = extracted.content;
         contentHtml = extracted.html;
         snippet = extracted.description || fullContent.slice(0, 400);

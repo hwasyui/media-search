@@ -50,6 +50,7 @@
   .sugg .tk{font-weight:700;width:52px}
   .sugg small{color:var(--muted);margin-left:auto}
   .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;font-weight:600;border:1px solid var(--line2);background:var(--panel)}
+  .btn.disabled, .btn[disabled]{opacity:0.45;cursor:not-allowed;pointer-events:none}
   .btn:hover{background:var(--panel2)} .btn:disabled{opacity:.55;cursor:wait}
   .btn.pri{background:var(--green);color:#04120a;border-color:var(--green)} .btn.pri:hover{filter:brightness(1.08)}
   .btn.wht{background:var(--cyan);color:#fff;border-color:var(--cyan)}
@@ -81,6 +82,10 @@
   .t-amber{background:var(--amber-bg);color:var(--amber)} .t-cyan{background:var(--cyan-bg);color:var(--cyan)}
   .t-violet{background:var(--violet-bg);color:var(--violet)} .t-gray{background:var(--panel2);color:var(--muted)}
   .co-pill{display:inline-flex;gap:6px;align-items:center;color:var(--cyan);font-weight:700;font-size:12.5px}
+  .news .meta > a:last-child{white-space:nowrap;flex:none}
+  .co-wrap{display:inline-flex;flex-wrap:wrap;gap:4px 8px;align-items:center;min-width:0}
+  .co-more{display:inline-flex;flex-wrap:wrap;gap:4px}
+  .co-chip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--line2);color:var(--muted);font-size:11.5px;font-weight:600;white-space:nowrap} .co-chip:hover{border-color:var(--cyan);color:var(--text)} .co-chip i{width:7px;height:7px;border-radius:50%;display:inline-block}
 
   .lead{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px;margin-top:18px;align-items:stretch}
   .lead-main{background:var(--panel);border:1px solid var(--line2);border-top:3px solid var(--cyan);padding:28px;display:flex;flex-direction:column;gap:14px}
@@ -214,6 +219,8 @@
   .nw-hd-main{min-width:0;flex:1}
   .nw-meta{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:12.5px;color:var(--muted);margin-bottom:7px} .nw-meta b{color:var(--text);font-weight:600} .nw-meta img{border-radius:3px}
   #nwTitle{margin:0;font-size:19px;line-height:1.35;letter-spacing:-.01em}
+  .nw-tl{color:inherit;text-decoration:none;cursor:pointer} .nw-tl:hover{color:var(--cyan,#4c8dff);text-decoration:underline;text-underline-offset:3px}
+  .nw-lnk{color:var(--cyan,#4c8dff);text-decoration:none;word-break:break-all} .nw-lnk:hover{text-decoration:underline}
   .nw-hd-act{display:flex;gap:8px;align-items:center;flex:none}
   .ai-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:0;border-radius:999px !important;background:linear-gradient(135deg,#4c8dff,#8b5cf6);color:#fff;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 18px rgba(99,102,241,.45);transition:filter .15s,transform .15s}
   .ai-btn:hover{filter:brightness(1.12);transform:translateY(-1px)} .ai-btn svg{flex:none}
@@ -231,6 +238,9 @@
   .nw-text{line-height:1.8;color:#d3d8df;font-size:14.5px} .nw-text p{margin:0 0 .9em} .nw-text p:last-child{margin-bottom:0}
   .nw-text.clamp{max-height:300px;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
   .nw-more{margin-top:8px;background:none;border:0;color:var(--cyan);font-weight:600;cursor:pointer;padding:4px 0} .nw-more[hidden]{display:none}
+  .nw-tabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .nw-tab{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:transparent;border:1px solid var(--line2);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer} .nw-tab:hover{color:var(--text);border-color:var(--cyan)} .nw-tab.on{background:var(--panel2);color:var(--text);border-color:var(--cyan)} .nw-tab.off{opacity:.55;border-style:dashed} .nw-tab i{width:8px;height:8px;border-radius:50%;display:inline-block;border:1px solid var(--dim,#8a93a0)}
+  .nw-also{padding:8px 0;border-top:1px solid var(--line)} .nw-also:first-of-type{border-top:0} .nw-also .nw-lnk{font-weight:600}
   .nw-find{display:grid;grid-template-columns:minmax(160px,220px) 1fr;gap:14px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
   .nw-find:first-of-type{border-top:0}
   .nw-find blockquote{margin:0;padding:8px 12px;border-left:3px solid var(--line2);background:var(--bg);color:#c5cbd3;font-size:13.5px;line-height:1.6}
@@ -303,6 +313,8 @@
         <input id="q" autocomplete="off" placeholder="Cari perusahaan, ticker (BBCA, GOTO), atau kata kunci berita…">
         <div class="sugg" id="sugg"></div>
       </div>
+      <label class="fc" style="height:38px;border-radius:10px" title="Lapis data berita yang ditampilkan::Relevan = dinilai AI relevan (default). Cleaned = alamat penerbit valid, bukan konten konsumen. Mentah = semua hasil crawl."><span>Lapis</span>
+        <select id="layerSel"><option value="relevan">Relevan</option><option value="cleaned">Cleaned</option><option value="mentah">Mentah</option></select></label>
       <button class="btn" id="addCo" title="Tambah perusahaan klien (debitur)">＋ Perusahaan</button>
       <button class="btn" id="startTour" title="Tur fitur::Robot AI memandu Anda melihat fitur-fitur utama langkah demi langkah, dengan suara.">▶ Tur</button>
       <button class="btn" id="refreshAll" title="Ambil berita terbaru untuk semua perusahaan">⟳ Perbarui semua</button>
@@ -319,7 +331,19 @@
       <label class="fl">Kode saham (bila Tbk)<input id="acTicker" placeholder="kosongkan bila tertutup" maxlength="6"></label></div>
     <label class="fl">Nama lain / merek (pisahkan koma)<input id="acAlias" placeholder="Contoh Karya, CKA"></label>
     <label class="fl">Pengurus &amp; pemegang saham (satu per baris: Nama - peran)<textarea id="acStk" rows="5" placeholder="Budi Santoso - Direktur Utama&#10;Siti Aminah - Komisaris&#10;PT Induk Makmur - Pemegang saham 60%"></textarea></label>
+    <label class="fl">Query pencarian tambahan (opsional, satu per baris)<textarea id="acExtra" rows="3" placeholder="&quot;Contoh Karya&quot; tambang ilegal&#10;&quot;Contoh Karya&quot; (PHK OR demo)&#10;Budi Santoso Contoh Karya"></textarea></label>
+    <p class="muted sm" style="margin:-4px 0 0">Teks pencarian bebas (boleh pakai tanda kutip dan OR) yang ikut dijalankan saat crawl, di luar query otomatis dari nama, alias, dan pengurus.</p>
     <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="acCancel">Batal</button><button class="btn wht" id="acSubmit">Simpan</button></div>
+  </form>
+</div>
+<div class="modal-ov" id="qeModal" hidden>
+  <form class="modal-box" id="qeForm" autocomplete="off">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Ubah pencarian berita</h3><button type="button" class="btn" id="qeClose" style="padding:3px 10px">✕</button></div>
+    <p class="muted sm" style="margin:6px 0 14px" id="qeFor"></p>
+    <label class="fl">Nama lain / merek (pisahkan koma; yang pertama dipakai sebagai nama utama untuk mencari pemangku kepentingan)<input id="qeAlias" placeholder="Contoh Karya, CKA"></label>
+    <label class="fl">Query pencarian tambahan (satu per baris)<textarea id="qeExtra" rows="4" placeholder="&quot;Contoh Karya&quot; tambang ilegal&#10;&quot;Contoh Karya&quot; (PHK OR demo)"></textarea></label>
+    <p class="muted sm" style="margin:-4px 0 0">Berlaku untuk crawl berikutnya. Berita yang sudah tersimpan tidak berubah.</p>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn" id="qeCancel">Batal</button><button class="btn wht" id="qeSubmit">Simpan</button></div>
   </form>
 </div>
 <div class="modal-ov" id="nwModal" hidden>
@@ -341,15 +365,23 @@
 'use strict';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const isBadUrl = (u) => !u || /^https?:\/\/(www\.)?google\.com\/search\?/i.test(u) || /^\/go\//i.test(u) || /^https?:\/\/[^/]+\/go\//i.test(u);
 const safeUrl = (u) => {
-  if (!u) return '#';
-  if (/^https?:\/\//i.test(u) || u.startsWith('/go/') || u.startsWith('/')) return u;
+  if (!u || isBadUrl(u) || u === '#' || u.startsWith('/go/')) return '#';
+  if (/^https?:\/\//i.test(u)) return u;
   return '#';
 };
-// Alamat artikel yang dibuka pengguna: alamat penerbit bila sudah diketahui; tautan Google News (pengalihan) lewat /go/:id yang menyelesaikannya di server
-const artUrl = (r) => r.article_url || (/^https:\/\/news\.google\.com\//.test(r.url || '') ? '/go/' + r.id : r.url);
+// Alamat artikel asli penerbit (hanya URL asli penerbit; jangan pernah gunakan port/endpoint lokal /go/:id)
+const artUrl = (r) => {
+  if (r.article_url && !isBadUrl(r.article_url) && !/^https:\/\/news\.google\.com\//i.test(r.article_url)) return r.article_url;
+  if (r.url && !isBadUrl(r.url) && !/^https:\/\/news\.google\.com\//i.test(r.url)) return r.url;
+  return '#';
+};
 const nf = (n, d = 0) => (n == null ? '–' : Number(n).toLocaleString('id-ID', { maximumFractionDigits: d }));
+// Lapis data berita (relevan/cleaned/mentah) dipilih di header dan dikirim ke semua /api/news (kecuali detail satu berita)
+const LAYER = (() => { try { return localStorage.getItem('ms-layer') || 'relevan'; } catch { return 'relevan'; } })();
 const api = async (url, opt) => {
+  if (LAYER !== 'relevan' && /^\/api\/(news(\?|\/facets)|portfolio|company\/[^/?]+\/overview)/.test(url)) url += (url.includes('?') ? '&' : '?') + 'layer=' + LAYER;
   const r = await fetch(url, opt);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
@@ -400,6 +432,7 @@ function tagsFor(r, compact = false) {
   }
   if (compact) return t.join('');
   if (r.credibility_tier === 'official') t.push('<span class="tag t-green" title="Sumber resmi::Berasal dari domain instansi pemerintah, bursa, atau lembaga resmi. Ini menunjukkan jenis sumbernya, bukan jaminan semua isinya benar.">✓ Sumber resmi</span>');
+  if (r.also_n > 0) t.push('<span class="tag t-gray" title="Juga dimuat di media lain::Berita yang sama (judul sama atau mirip) juga dimuat ' + r.also_n + ' media lain. Daftarnya ada di detail berita.">+' + r.also_n + ' media</span>');
   if (PLAT_SHORT[r.platform]) t.push('<span class="tag t-cyan">' + PLAT_SHORT[r.platform] + '</span>');
   if (r.content_kind === 'konsumen') t.push('<span class="tag t-gray" title="Konten konsumen::AI menilai isinya tutorial, promo, atau lowongan yang tidak berguna untuk menilai risiko kredit, jadi disaring dari daftar.">konten konsumen</span>');
   if (r.related === 0) t.push('<span class="tag t-gray" title="Tidak terkait::Teks berita belum menyebut perusahaan ini maupun pemangku kepentingannya.">tidak terkait</span>');
@@ -429,6 +462,16 @@ function sideRow(r) {
 }
 // Berita tanpa gambar yang belum pernah dicek: gambarnya diminta saat tampil (tautan Google News didekode ke penerbit di server).
 const lazyAttr = (r) => (r.image_url || r.image_checked ? '' : 'data-lazyimg="' + r.id + '"');
+const IMP_DOT = { buruk: 'var(--red,#ef5b5b)', baik: 'var(--green,#2fbf71)', netral: 'var(--dim,#8a93a0)' };
+const ROLE_TXT = { subjek: 'subjek utama', pihak_terlibat: 'ikut terlibat', disebut_sekilas: 'hanya disebut sekilas', pihak_lain: 'pihak lain' };
+// Satu kartu untuk satu artikel: pil perusahaan utama + perusahaan lain yang punya artikel yang sama (penilaian AI-nya bisa berbeda: titik berwarna = dampak untuk perusahaan itu).
+function coPills(r, full = true) {
+  const main = '<a class="co-pill" href="#/c/' + esc(r.company_id) + '">🏢 ' + esc(full ? r.company_name : (r.company_ticker || r.company_name)) + '</a>';
+  const more = Array.isArray(r.also_cos) ? r.also_cos : [];
+  if (!more.length) return main;
+  return main + '<span class="co-more" title="Artikel yang sama juga relevan untuk perusahaan ini. Penilaian AI dihitung per perusahaan, jadi klik untuk melihat penilaiannya.">' + more.slice().sort((a, b) => String(a.l).localeCompare(String(b.l))).map((c) =>
+    '<a class="co-chip" href="#/c/' + esc(c.id) + '" title="' + esc(c.l + ' · dampak: ' + (c.i || 'belum dinilai AI') + (c.r ? ' · peran: ' + (ROLE_TXT[c.r] || c.r) : '')) + '"><i style="background:' + (IMP_DOT[c.i] || 'transparent') + ';border:1px solid ' + (IMP_DOT[c.i] || 'var(--dim,#8a93a0)') + '"></i>' + esc(c.l) + '</a>').join('') + '</span>';
+}
 function newsCard(r, { showCompany = true } = {}) {
   const sum = r.ai_summary || r.snippet;
   return `<article class="news" data-nid="${r.id}" ${lazyAttr(r)}>${thumb(r)}
@@ -436,7 +479,7 @@ function newsCard(r, { showCompany = true } = {}) {
     <h3><a href="${esc(safeUrl(artUrl(r)))}" data-nid="${r.id}" target="_blank" rel="noopener" title="Klik untuk detail">${esc(r.title)}</a></h3>
     ${sum ? `<p>${esc(sum)}</p>` : ''}
     <div class="row" style="gap:5px;flex-wrap:wrap">${tagsFor(r)}</div>
-    <div class="meta">${showCompany ? `<a class="co-pill" href="#/c/${esc(r.company_id)}">🏢 ${esc(r.company_name)}</a>` : '<span></span>'}<a href="${esc(safeUrl(artUrl(r)))}" target="_blank" rel="noopener">Sumber ↗</a></div>
+    <div class="meta">${showCompany ? `<span class="co-wrap">${coPills(r)}</span>` : '<span></span>'}<a href="${esc(safeUrl(artUrl(r)))}" target="_blank" rel="noopener">Sumber ↗</a></div>
   </article>`;
 }
 function leadCard(r) {
@@ -448,7 +491,7 @@ function leadCard(r) {
     ${sum ? `<p>${esc(sum.slice(0, 320))}${sum.length > 320 ? '…' : ''}</p>` : ''}
     ${r.impact_reason && !isPending(r) ? `<div class="status">${esc(r.impact_reason)}</div>` : ''}
     <div class="row" style="margin-top:auto;justify-content:space-between">
-      <a class="co-pill" href="#/c/${esc(r.company_id)}">🏢 ${esc(r.company_name)}</a>
+      <span class="co-wrap">${coPills(r)}</span>
       <span class="sm dim">${esc(fullDate(r.published_at))} · ${esc(ago(r.published_at))} · <a style="color:var(--cyan)" href="${esc(safeUrl(artUrl(r)))}" target="_blank" rel="noopener">Sumber ↗</a></span>
     </div>
   </article>`;
@@ -593,6 +636,8 @@ function tabProfil() {
       <div class="kv"><span>Nama</span><b>${esc(c.name)}</b></div><div class="kv"><span>Status</span><b>${c.type === 'public' ? 'Perusahaan terbuka (Tbk)' : 'Tertutup / swasta'}</b></div>
       ${c.ticker ? `<div class="kv"><span>Ticker</span><b>${esc(c.ticker)}</b></div>` : ''}<div class="kv"><span>Sektor</span><b>${esc(c.sector || '-')}</b></div>
       <div class="kv"><span>Alias pencarian</span><b>${(c.aliases || []).map((a) => `<span class="tag t-gray">${esc(a)}</span>`).join(' ') || '-'}</b></div>
+      <div class="kv"><span>Query tambahan</span><b>${(c.extraQueries || []).map((q) => `<span class="tag t-gray">${esc(q)}</span>`).join(' ') || '-'}</b></div>
+      <div style="margin-top:10px"><button type="button" class="btn" id="qeOpen">Ubah pencarian</button></div>
       <div class="kv"><span>Terakhir diperbarui</span><b>${c.lastCrawlAt ? esc(new Date(c.lastCrawlAt).toLocaleString('id-ID')) : '-'}</b></div></div>
     <div class="card"><div style="font-weight:700;margin-bottom:8px">Pemangku kepentingan</div>
       ${(c.stakeholders || []).map((s) => `<div class="kv"><span style="border:0;color:var(--text)">${esc(s.name)}</span><b class="muted sm">${esc(s.role || '')}</b></div>`).join('') || '<div class="muted">Belum ada.</div>'}</div></div>`;
@@ -639,8 +684,16 @@ async function refreshCompany(id, btn) {
 // Form tambah perusahaan klien (fungsinya dimuat belakangan dari portal-risk.js, jadi dirujuk saat dipakai)
 $('#addCo').onclick = () => openAddCompany();
 $('#acClose').onclick = $('#acCancel').onclick = () => closeAddCompany();
+$('#qeClose').onclick = $('#qeCancel').onclick = () => { $('#qeModal').hidden = true; };
+document.addEventListener('click', (e) => { if (e.target.id === 'qeOpen') openEditSearch(); });
+$('#qeForm').addEventListener('submit', (e) => submitEditSearch(e));
 $('#acModal').addEventListener('click', (e) => { if (e.target.id === 'acModal') closeAddCompany(); });
 $('#acForm').addEventListener('submit', (e) => submitAddCompany(e));
+$('#layerSel').value = LAYER;
+fetch('/api/news/layers').then((r) => r.json()).then((c) => {
+  for (const o of $('#layerSel').options) if (c[o.value] != null) { const n = c.cerita && c.cerita[o.value] != null ? c.cerita[o.value] : c[o.value]; o.textContent = o.textContent.replace(/ \(.*$/, '') + ' (' + nf(n) + ')'; o.title = nf(n) + ' berita (cerita yang sama untuk beberapa perusahaan dihitung sekali); ' + nf(c[o.value]) + ' baris bila dihitung per perusahaan'; }
+}).catch(() => {});
+$('#layerSel').onchange = (e) => { try { localStorage.setItem('ms-layer', e.target.value); } catch { /* abaikan */ } location.reload(); };
 $('#refreshAll').onclick = async () => {
   const b = $('#refreshAll'); b.disabled = true;
   try {

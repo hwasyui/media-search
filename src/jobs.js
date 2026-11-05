@@ -7,6 +7,7 @@ import { cleanItems } from './clean.js';
 import { enrichItemsWithContent, htmlToText } from './extractor.js';
 import { isGoogleArticle, resolveGoogleUrl } from './gnews.js';
 import { isGoogleNewsUrl, resolveArticleUrl } from './resolver.js';
+import { findPublisherUrl, isSearchUrl, isUsableArticleUrl } from './links.js';
 import { getFinancials } from './financial.js';
 import { markJobsInterrupted, saveAnalysis, saveFinancial, saveJobRun, saveNews, saveReport, saveRiskProfile } from './save.js';
 import { getRiskProfile } from './riskprofile.js';
@@ -44,7 +45,7 @@ async function prepareContent(companyId, items, { concurrency = 6, signal, log =
   let skipped = 0;
   for (const it of items) {
     const k = known.get(keyOf(it).toString('hex').toUpperCase());
-    const google = isGoogleNewsUrl(it.url);
+    const google = isGoogleNewsUrl(it.url) || isSearchUrl(it.url);      // tautan pencarian Google (pengganti dari resolver) juga dianggap BELUM terselesaikan
     if (k?.has && (k.article_url || !google)) {
       if (k.article_url) { it.articleUrl = k.article_url; it.url = k.article_url; }
       skipped++;
@@ -63,11 +64,8 @@ async function prepareContent(companyId, items, { concurrency = 6, signal, log =
   let ok = 0, fail = 0;
   for (const it of toResolve) {
     if (signal?.aborted) break;
-    let real = null;
-    try {
-      real = await resolveArticleUrl({ url: it.url, title: it.title, source_domain: it.sourceDomain, source_name: it.sourceName });
-    } catch {}
-    if (real && !isGoogleNewsUrl(real)) {
+    const real = await findPublisherUrl({ masked: it.originalUrl || it.url, title: it.title, source_domain: it.sourceDomain, source_name: it.sourceName, signal }).catch(() => null);
+    if (real) {
       it.url = real;
       it.articleUrl = real;
       todo.push(it);
@@ -78,7 +76,21 @@ async function prepareContent(companyId, items, { concurrency = 6, signal, log =
     }
   }
   log(`tautan Google News: ${ok} diselesaikan${fail ? `, ${fail} belum` : ''}; ${skipped} item sudah lengkap dan dilewati`);
-  await enrichItemsWithContent(todo, { concurrency, onProgress });
+  // Artikel yang sama (alamat penerbit sama) sudah diambil untuk perusahaan lain: salin isi dan gambarnya dari sana, jangan unduh ulang.
+  const fetchList = [];
+  let copied = 0;
+  const urlsOf = [...new Set(todo.map((it) => it.articleUrl || it.url).filter(Boolean))];
+  const sib = new Map();
+  for (let i = 0; i < urlsOf.length; i += 300) {
+    const [rows] = await db().query('SELECT article_url, content_html, image_url FROM news_items WHERE article_url IN (?) AND content_html IS NOT NULL AND CHAR_LENGTH(content_html) >= 300 ORDER BY CHAR_LENGTH(content_html) DESC', [urlsOf.slice(i, i + 300)]);
+    for (const r of rows) if (!sib.has(r.article_url)) sib.set(r.article_url, r);
+  }
+  for (const it of todo) {
+    const s = sib.get(it.articleUrl || it.url);
+    if (s) { it.contentHtml = s.content_html; it.fullContent = htmlToText(s.content_html); if (!it.image && s.image_url) it.image = s.image_url; copied++; } else fetchList.push(it);
+  }
+  if (copied) log(`${copied} artikel yang sama sudah diambil untuk perusahaan lain: isinya disalin (tidak diunduh ulang)`);
+  await enrichItemsWithContent(fetchList, { concurrency, onProgress });
   return items;
 }
 
@@ -151,7 +163,7 @@ async function runCronCycle(opts, targets, cycle, ctx) {
   const aiDelayMs = clamp(num(opts.aiDelayMs, 3000), 0, 600_000);
   const dry = Boolean(opts.dry);
 
-  let jobs = buildJobs(targets.keywords, targets.sources, targets.modifiers);
+  let jobs = buildJobs(targets.keywords, targets.sources, targets.modifiers, targets.anchors, targets.extraQueries);
   if (dry && opts.fakeJobs) {
     // Perbanyak job (keyword sintetis) untuk mensimulasikan volume besar
     const base = jobs;
@@ -168,6 +180,10 @@ async function runCronCycle(opts, targets, cycle, ctx) {
   const run = dry ? makeFakeRunner() : runJobs;
   log(`cycle ${cycle}: ${jobs.length} job -> ${chunks.length} work x ${chunkSize} job, jeda ${delayMs}ms${dry ? ' (DRY)' : ''}`);
 
+  // Rencana crawl yang bisa dilihat di Task Runner: tiap work berisi daftar query (sumber, modifier, teks query) beserta statusnya.
+  const planWorks = chunks.map((c, i) => ({ n: i + 1, state: 'menunggu', jobs: c.map((j) => ({ s: j.source, m: j.modifier, k: j.keyword, q: String(j.q).slice(0, 170) })) }));
+  const plan = { company: targets.entity?.name || '', cycle, total: jobs.length, chunkSize, delayMs, concurrency, works: planWorks };
+  progress({ plan });
   const allResults = [];
   const perWork = [];
   let projectedMs = 0;
@@ -176,7 +192,8 @@ async function runCronCycle(opts, targets, cycle, ctx) {
   for (let i = 0; i < chunks.length; i++) {
     throwIfAborted(ctx.signal);
     const label = `work${i + 1}`;
-    progress({ stage: 'crawl', cycle, work: label, done: i, total: chunks.length });
+    planWorks[i].state = 'berjalan';
+    progress({ stage: 'crawl', cycle, work: label, done: i, total: chunks.length, plan });
     const t0 = Date.now();
     const results = await run(chunks[i], { concurrency, signal: ctx.signal });
     throwIfAborted(ctx.signal);
@@ -187,7 +204,13 @@ async function runCronCycle(opts, targets, cycle, ctx) {
     perWork.push({ work: label, jobs: chunks[i].length, items, failed, ms });
     projectedMs += ms;
     log(`${label}/${chunks.length}: ${items} item, ${failed} gagal, ${ms}ms`);
-    progress({ stage: 'crawl', cycle, work: label, done: i + 1, total: chunks.length });
+    const w = planWorks[i];
+    w.state = failed && failed === chunks[i].length ? 'gagal' : 'selesai'; w.items = items; w.failed = failed; w.ms = ms;
+    for (const r of results) {
+      const jj = w.jobs.find((x) => x.s === r.job.source && x.q === String(r.job.q).slice(0, 170));
+      if (jj) { jj.n = r.items.length; if (!r.ok) jj.e = String(r.error || 'gagal').slice(0, 90); }
+    }
+    progress({ stage: 'crawl', cycle, work: label, done: i + 1, total: chunks.length, plan });
     if (i < chunks.length - 1) {
       projectedMs += delayMs;
       if (!dry && delayMs) {
@@ -216,6 +239,10 @@ async function runCronCycle(opts, targets, cycle, ctx) {
   if (!dry && cleaned.items.length) {
     log(`ekstraksi konten: mengambil isi artikel & caption sosmed (${cleaned.items.length} item)...`);
     await prepareContent(targets.entity?.id, cleaned.items, { concurrency: 6, signal: ctx.signal, log, onProgress: (d, tot) => progress({ stage: 'extract', cycle, done: d, total: tot }) });
+    // Berita yang alamat penerbitnya belum ditemukan TETAP disimpan ke data mentah (hash alamat awal mencegah duplikat; diselesaikan lagi di crawl berikutnya atau lewat
+    // "Lengkapi data tersimpan"). Mereka tersembunyi dari data cleaned oleh view dan TIDAK dikirim ke AI sampai alamat penerbitnya ketemu.
+    const noPub = cleaned.items.filter((it) => !it.articleUrl && !isUsableArticleUrl(it.url)).length;
+    if (noPub) log(`${noPub} berita disimpan sebagai data mentah tanpa alamat penerbit (belum cleaned, belum dikirim ke AI)`);
     log(`ekstraksi selesai: konten lengkap & caption siap`);
   }
 
@@ -223,7 +250,7 @@ async function runCronCycle(opts, targets, cycle, ctx) {
 
   const sp = !dry && targets.entity?.id ? await splitComplete(targets.entity.id, cleaned.items.filter((it) => !droppedDup.has(it.url))) : { todo: cleaned.items, complete: [] };
   if (sp.complete.length) { log(`${sp.complete.length} berita sudah terklasifikasi lengkap: dilewati (tidak dikirim ke AI)`); report.aiSkippedComplete = sp.complete.length; }
-  const aiItems = sp.todo.slice(0, MAX_ITEMS);
+  const aiItems = sp.todo.filter((it) => it.articleUrl || isUsableArticleUrl(it.url)).slice(0, MAX_ITEMS);      // AI hanya untuk berita yang alamat penerbitnya sudah ketemu
   const keys = groqKeys().length;
   const aiCalls = Math.ceil(aiItems.length / BATCH);
   if (opts.classify && !dry) {
@@ -494,7 +521,7 @@ async function reclassifyCompany(co, opts, ctx) {
   const chunk = clamp(num(opts.aiChunk, 60), 1, 200);
   const delay = clamp(num(opts.aiDelayMs, 3000), 0, 600_000);
   const [todo] = await db().query(
-    "SELECT url, title, snippet, content_html, source_name, source_domain, image_url, UNIX_TIMESTAMP(sort_at) AS ts FROM news_items WHERE company_id = ? AND " + INCOMPLETE_SQL + " ORDER BY sort_at DESC LIMIT 300",
+    "SELECT HEX(url_hash) AS h, COALESCE(article_url, found_url) AS url, title, snippet, content_html, source_name, source_domain, image_url, UNIX_TIMESTAMP(sort_at) AS ts FROM news_items WHERE company_id = ? AND COALESCE(article_url, found_url) NOT LIKE 'https://news.google.com/%' AND COALESCE(article_url, found_url) NOT LIKE 'https://www.google.com/search%' AND COALESCE(article_url, found_url) NOT LIKE 'https://google.com/search%' AND " + INCOMPLETE_SQL + " ORDER BY sort_at DESC LIMIT 300",
     [co.id],
   );
   ctx.log?.(todo.length + ' berita belum terklasifikasi');
@@ -502,7 +529,7 @@ async function reclassifyCompany(co, opts, ctx) {
   for (let i = 0; i < todo.length; i += chunk) {
     throwIfAborted(ctx.signal);
     const items = todo.slice(i, i + chunk).map((r, k) => ({
-      id: k + 1, platform: r.source_name || r.source_domain || '', url: r.url, title: r.title, snippet: r.snippet, fullContent: htmlToText(r.content_html) || undefined,
+      id: k + 1, urlHash: r.h, platform: r.source_name || r.source_domain || '', url: r.url, title: r.title, snippet: r.snippet, fullContent: htmlToText(r.content_html) || undefined,
       text: [r.title, r.snippet].filter(Boolean).join(' — '), date: new Date(r.ts * 1000).toISOString(),
       sourceName: r.source_name, image: r.image_url || undefined,
     }));
@@ -585,7 +612,7 @@ const NEW_AI = "ai_status = 'ok' AND company_role IS NOT NULL";
 export async function runRescore(opts = {}, ctx = {}) {
   const rows = await forEachCompany(opts, ctx, 'hitung ulang keterkaitan nama & bersihkan hasil kata kunci', async (co) => {
     const match = buildMatcher(co);
-    const [items] = await db().query('SELECT id, title, snippet, LEFT(content_html, 30000) AS content_html, url, source_domain, credibility_tier FROM news_items WHERE company_id = ?', [co.id]);
+    const [items] = await db().query('SELECT id, title, snippet, LEFT(content_html, 30000) AS content_html, COALESCE(article_url, found_url) AS url, source_domain, credibility_tier FROM news_items WHERE company_id = ?', [co.id]);
     let related = 0;
     for (const it of items) {
       throwIfAborted(ctx.signal);
