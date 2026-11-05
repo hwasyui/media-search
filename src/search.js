@@ -15,6 +15,11 @@ export const MODIFIERS = {
   kontroversi: { label: 'Kontroversi', terms: 'kontroversi OR skandal OR dugaan OR korupsi' },
   keluhan: { label: 'Keluhan publik', terms: 'keluhan OR kecewa OR komplain' },
   rumor: { label: 'Rumor', terms: 'katanya OR konon OR rumor OR hoax' },
+  // Untuk mengisi dossier: pemilik & akta, klien & proyek, kredit & fasilitas bank, serta perkara hukum (perusahaan tertutup)
+  deed: { label: 'Akta & pemilik', terms: 'notaris OR akta OR AHU OR "pemegang saham" OR "pemilik manfaat" OR direksi OR komisaris' },
+  klien: { label: 'Klien & proyek', terms: 'tender OR proyek OR kontrak OR subkontraktor OR klien OR mitra' },
+  kredit: { label: 'Kredit & keuangan', terms: 'kredit OR pinjaman OR "fasilitas bank" OR audit OR "laporan keuangan" OR utang' },
+  hukum: { label: 'Perkara hukum', terms: 'gugatan OR sengketa OR PKPU OR pailit' },
 };
 
 export function buildQuery(keyword, modifier) {

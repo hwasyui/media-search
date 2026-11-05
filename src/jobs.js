@@ -4,17 +4,19 @@
 //   ctx = { signal, log(msg), progress({stage, done, total, ...}), onReport(report) }
 import { randomUUID } from 'node:crypto';
 import { cleanItems } from './clean.js';
-import { enrichItemsWithContent } from './extractor.js';
+import { enrichItemsWithContent, htmlToText } from './extractor.js';
+import { isGoogleArticle, resolveGoogleUrl } from './gnews.js';
+import { isGoogleNewsUrl, resolveArticleUrl } from './resolver.js';
 import { getFinancials } from './financial.js';
 import { markJobsInterrupted, saveAnalysis, saveFinancial, saveJobRun, saveNews, saveReport, saveRiskProfile } from './save.js';
 import { getRiskProfile } from './riskprofile.js';
 import { generateAnalysis } from './analysis.js';
 import { INCOMPLETE_SQL, splitComplete } from './news.js';
-import { maxSeverity, riskTags } from './risk.js';
-import { NEAR_DUP, buildMatcher, jaccard, normTitle, titleTokens } from './related.js';
+import { buildMatcher, normTitle } from './related.js';
 import { createHash } from 'node:crypto';
 import { contentKind, platformOf } from './kind.js';
-import { enrichImages } from './images.js';
+import { enrichContentHtml, realUrl } from './content.js';
+import { generateCompanyDossier, getCompanyDossier } from './dossier.js';
 import { latestAnalysis, listCompanies, listJobRuns } from './store.js';
 import { db } from './db.js';
 import { BATCH, aiUsage, classifyItems, geminiKeys, groqKeys, MAX_ITEMS } from './classify.js';
@@ -22,6 +24,63 @@ import {
   buildJobs, estimateChunkMs, healthFlags, makeFakeRunner, resolveTargets, runJobs,
   summarizeAi, summarizeClean, summarizeFetch, summarizeRawQuality,
 } from './sim-lib.js';
+
+// Siapkan isi artikel untuk item hasil crawl sebelum disimpan. Urutannya sengaja begini:
+//  1) item yang sudah tersimpan lengkap (sudah punya isi) dilewati, jadi tidak diunduh ulang di tiap crawl;
+//  2) tautan Google News diselesaikan SATU PER SATU lewat gnews.js (yang pernah diselesaikan dipakai ulang dari DB) agar tidak kena 429;
+//  3) ekstraktor (tidak diubah) membaca alamat penerbit. Item yang tautannya belum bisa diselesaikan tidak diekstrak (isinya menyusul lewat "Lengkapi data tersimpan").
+// it.url dikembalikan ke tautan awal setelahnya (kunci duplikat tetap sama); alamat penerbit disimpan terpisah di it.articleUrl.
+async function prepareContent(companyId, items, { concurrency = 6, signal, log = () => {}, onProgress } = {}) {
+  if (!items.length) return items;
+  const keyOf = (it) => createHash('sha1').update(it.canonical || it.url).digest();
+  const known = new Map();
+  if (companyId) {
+    for (let i = 0; i < items.length; i += 500) {
+      const [rows] = await db().query('SELECT HEX(url_hash) h, article_url, content_html IS NOT NULL AS has FROM news_items WHERE company_id = ? AND url_hash IN (?)', [companyId, items.slice(i, i + 500).map(keyOf)]);
+      rows.forEach((r) => known.set(r.h, r));
+    }
+  }
+  const todo = [], toResolve = [];
+  let skipped = 0;
+  for (const it of items) {
+    const k = known.get(keyOf(it).toString('hex').toUpperCase());
+    const google = isGoogleNewsUrl(it.url);
+    if (k?.has && (k.article_url || !google)) {
+      if (k.article_url) { it.articleUrl = k.article_url; it.url = k.article_url; }
+      skipped++;
+      continue;
+    }
+    if (google && k?.article_url) {
+      it.url = k.article_url;
+      it.articleUrl = k.article_url;
+      todo.push(it);
+    } else if (google) {
+      toResolve.push(it);
+    } else {
+      todo.push(it);
+    }
+  }
+  let ok = 0, fail = 0;
+  for (const it of toResolve) {
+    if (signal?.aborted) break;
+    let real = null;
+    try {
+      real = await resolveArticleUrl({ url: it.url, title: it.title, source_domain: it.sourceDomain, source_name: it.sourceName });
+    } catch {}
+    if (real && !isGoogleNewsUrl(real)) {
+      it.url = real;
+      it.articleUrl = real;
+      todo.push(it);
+      ok++;
+    } else {
+      fail++;
+      it.linkError = 'decode_gagal';
+    }
+  }
+  log(`tautan Google News: ${ok} diselesaikan${fail ? `, ${fail} belum` : ''}; ${skipped} item sudah lengkap dan dilewati`);
+  await enrichItemsWithContent(todo, { concurrency, onProgress });
+  return items;
+}
 
 const MAX_REAL_JOBS = 1000;    // pengaman: satu run nyata maksimal 1000 query
 
@@ -50,105 +109,6 @@ async function persistItems(entity, cleanedItems, classified, report, log) {
   report.saved = await saveNews(entity.id, items);
   log(`DB: ${report.saved.saved} berita diproses, ${report.saved.inserted} baru${report.saved.duplicates ? `, ${report.saved.duplicates} duplikat dibuang (tidak disimpan)` : ''}`);
   return new Set(report.saved.droppedUrls || []);
-}
-
-// ─── Simulasi kualitas data (sekali jalan) ─────────────
-// opts: { company | keywords, sources, modifiers, classify, dry, concurrency, maxAgeDays }
-export async function runSimulate(opts = {}, ctx = {}) {
-  const log = ctx.log || (() => {});
-  const progress = ctx.progress || (() => {});
-  const concurrency = clamp(num(opts.concurrency, 3), 1, 6);
-  const maxAgeDays = clamp(num(opts.maxAgeDays, 7), 1, 60);
-  const dry = Boolean(opts.dry);
-
-  const { keywords, sources, modifiers, entity } = await resolveTargets(opts);
-  const jobs = buildJobs(keywords, sources, modifiers);
-  if (!dry && jobs.length > MAX_REAL_JOBS) throw new Error(`Terlalu banyak query (${jobs.length}); maksimal ${MAX_REAL_JOBS} untuk run nyata.`);
-  log(`${keywords.length} keyword x ${sources.length} sumber x ${modifiers.length} modifier = ${jobs.length} query${dry ? ' (DRY: data sintetis)' : ''}`);
-
-  const t0 = Date.now();
-  progress({ stage: 'fetch', done: 0, total: jobs.length });
-  const run = dry ? makeFakeRunner() : runJobs;
-  const results = await run(jobs, { concurrency, signal: ctx.signal, onJob: (n) => progress({ stage: 'fetch', done: n, total: jobs.length }) });
-  throwIfAborted(ctx.signal);
-  const fetchMs = Date.now() - t0;
-
-  const rawItems = results.flatMap((r) => r.items);
-  const failed = results.filter((r) => !r.ok).length;
-  log(`fetch selesai: ${rawItems.length} item mentah, ${failed}/${jobs.length} query gagal, ${fetchMs}ms`);
-
-  const report = {
-    type: 'simulate',
-    createdAt: new Date().toISOString(),
-    config: { keywords, sources, modifiers, jobs: jobs.length, dry, concurrency },
-    fetch: summarizeFetch(results),
-    raw: summarizeRawQuality(rawItems, maxAgeDays),
-  };
-
-  // Perusahaan terbuka: cek juga seberapa lengkap data keuangan publiknya (non-AI)
-  if (!dry && entity.type === 'public' && entity.ticker) {
-    log(`data keuangan ${entity.ticker}...`);
-    try {
-      const f = await getFinancials(entity.ticker);
-      const q = f.fundamentals?.quarterly?.[0];
-      report.financial = {
-        ticker: f.ticker,
-        harga: f.price ? `${f.price.price} ${f.price.currency} (5h ${f.price.change5dPct}%, 1b ${f.price.change1mPct}%)` : 'GAGAL',
-        valuasi: f.valuation ? 'ok' : 'GAGAL',
-        laporanKeuangan: f.fundamentals ? `${f.fundamentals.quarterly.length} kuartal, ${f.fundamentals.annual.length} tahun (terakhir ${q?.asOf || '-'}, ${f.fundamentals.currency || '?'})` : 'GAGAL',
-        pengumumanIdx: f.announcements ? `${f.announcements.length} dalam 90 hari` : `tidak tersedia: ${f.errors.announcements}`,
-        sinyal: f.signals.length ? f.signals.map((x) => `[${x.level}] ${x.text}`) : 'tidak ada',
-        error: Object.entries(f.errors).map(([k, v]) => `${k}: ${v}`).join('; ') || 'tidak ada',
-      };
-    } catch (e) {
-      report.financial = { ticker: entity.ticker, error: e.message };
-    }
-  }
-
-  progress({ stage: 'clean', done: 0, total: 1 });
-  const cleaned = cleanItems(rawItems);
-  report.clean = summarizeClean(cleaned.stats);
-  log(`clean: ${cleaned.stats.output}/${cleaned.stats.input} lolos (${report.clean.usablePct}%)`);
-
-  if (!dry && cleaned.items.length) {
-    log(`ekstraksi konten: mengambil isi artikel & caption sosmed (${cleaned.items.length} item)...`);
-    await enrichItemsWithContent(cleaned.items, {
-      concurrency: 6,
-      onProgress: (d, tot) => progress({ stage: 'extract', done: d, total: tot })
-    });
-    log(`ekstraksi selesai: konten lengkap & caption siap`);
-  }
-
-  const droppedDup = !dry ? await persistItems(entity, cleaned.items, null, report, log) : new Set();     // berita langsung tersimpan sebelum AI jalan
-
-  if (opts.classify) {
-    if (dry) {
-      log('klasifikasi AI dilewati pada mode DRY (tidak memanggil Groq).');
-    } else {
-      const sp = entity?.id ? await splitComplete(entity.id, cleaned.items.filter((it) => !droppedDup.has(it.url))) : { todo: cleaned.items, complete: [] };
-      if (sp.complete.length) { log(`${sp.complete.length} berita sudah terklasifikasi lengkap: dilewati`); report.aiSkippedComplete = sp.complete.length; }
-      const items = sp.todo.slice(0, MAX_ITEMS);
-      log(`klasifikasi AI ${items.length} item dengan ${groqKeys().length} key Groq + ${geminiKeys().length} Gemini`);
-      const classified = [];
-      const step = BATCH * 3;
-      for (let i = 0; i < items.length; i += step) {
-        throwIfAborted(ctx.signal);
-        const out = await classifyItems(items.slice(i, i + step), entity);
-        classified.push(...out);
-        if (entity?.id) await saveNews(entity.id, out, { dedupe: false });        // perbarui per batch: tidak hilang bila job berhenti
-        progress({ stage: 'ai', done: Math.min(i + step, items.length), total: items.length });
-      }
-      report.ai = summarizeAi(classified);
-      log(`AI selesai: ${report.ai.aiOk} ok, ${report.ai.aiFailed} gagal`);
-    }
-  }
-
-  report.timing = { fetchMs, totalMs: Date.now() - t0 };
-  report.health = healthFlags(report);
-  report.file = await saveReport('simulate', report, entity.id);
-  log(`laporan disimpan ke DB: ${report.file}`);
-  ctx.onReport?.(report);
-  return [report];
 }
 
 // ─── Cron: splitter + berurutan + jeda ─────────────────
@@ -255,10 +215,7 @@ async function runCronCycle(opts, targets, cycle, ctx) {
 
   if (!dry && cleaned.items.length) {
     log(`ekstraksi konten: mengambil isi artikel & caption sosmed (${cleaned.items.length} item)...`);
-    await enrichItemsWithContent(cleaned.items, {
-      concurrency: 6,
-      onProgress: (d, tot) => progress({ stage: 'extract', cycle, done: d, total: tot })
-    });
+    await prepareContent(targets.entity?.id, cleaned.items, { concurrency: 6, signal: ctx.signal, log, onProgress: (d, tot) => progress({ stage: 'extract', cycle, done: d, total: tot }) });
     log(`ekstraksi selesai: konten lengkap & caption siap`);
   }
 
@@ -330,8 +287,11 @@ export async function runPortfolio(opts = {}, ctx = {}) {
   const doClassify = opts.classify !== false;
   const doFinancial = opts.financial !== false;
   const doAnalysis = opts.analysis !== false;      // default: semua fitur dipakai
+  const doDossier = opts.dossier !== false && doClassify;      // dossier dibaca dari isi berita yang sudah dinilai AI, jadi ikut dilewati bila crawl tanpa AI
   const sources = Array.isArray(opts.sources) && opts.sources.length ? opts.sources : PORTFOLIO_SOURCES;
-  const modifiers = Array.isArray(opts.modifiers) && opts.modifiers.length ? opts.modifiers : ['none', 'isu'];
+  // Query dasar + topik dossier (akta/pemilik, klien/proyek, kredit/bank). Ditambah per perusahaan: perusahaan terbuka -> rumor pasar, tertutup -> perkara hukum.
+  const customMods = Array.isArray(opts.modifiers) && opts.modifiers.length ? opts.modifiers : null;
+  const modifiers = customMods || ['none', 'isu', 'deed', 'klien', 'kredit'];
 
   log(`${companies.length} perusahaan, berurutan, jeda ${companyDelayMs / 1000}s antar perusahaan; sumber: ${sources.join(', ')}`);
   const t0 = Date.now();
@@ -342,12 +302,17 @@ export async function runPortfolio(opts = {}, ctx = {}) {
     const co = companies[i];
     const base = { company: co.name, companyIndex: i + 1, companyTotal: companies.length };
     const sub = { ...ctx, progress: (p) => progress({ ...p, ...base }), onReport: undefined };
-    const row = { company: co.ticker || co.id, financial: '-', crawled: 0, saved: 0, newItems: 0, aiFailed: 0, analysis: '-', status: 'ok', ms: 0 };
+    const row = { company: co.ticker || co.id, financial: '-', crawled: 0, saved: 0, newItems: 0, aiFailed: 0, analysis: '-', dossier: '-', status: 'ok', ms: 0 };
     const c0 = Date.now();
     progress({ stage: 'company', done: i, total: companies.length, ...base });
     log(`── [${i + 1}/${companies.length}] ${co.name}`);
+    // Checkpoint per langkah: langkah yang sudah selesai pada run sebelumnya (opts.skipSteps) dilewati saat Lanjutkan, jadi yang diulang hanya yang gagal.
+    const stepDone = (st) => Boolean(opts.skipSteps?.[co.id]?.includes(st));
+    const mark = (st) => ctx.checkpoint?.({ company: co.id, step: st });
 
     try {
+      if (stepDone('crawl')) log('crawl perusahaan ini sudah selesai pada run sebelumnya: dilewati');
+      else {
       if (doFinancial && co.type === 'public' && co.ticker) {
         try {
           const f = await getFinancials(co.ticker);
@@ -359,7 +324,7 @@ export async function runPortfolio(opts = {}, ctx = {}) {
       }
 
       const reports = await runCron({
-        company: co.id, sources, modifiers, classify: doClassify,
+        company: co.id, sources, modifiers: customMods || [...modifiers, co.type === 'public' ? 'rumor' : 'hukum'], classify: doClassify,
         chunkSize: opts.chunkSize, delayMs: opts.delayMs, aiChunk: opts.aiChunk, aiDelayMs: opts.aiDelayMs,
         concurrency: opts.concurrency, maxAgeDays: opts.maxAgeDays,
       }, sub);
@@ -369,21 +334,47 @@ export async function runPortfolio(opts = {}, ctx = {}) {
       row.newItems = rep?.saved?.inserted ?? 0;
       row.aiFailed = rep?.ai?.aiFailed ?? 0;
       try { const rp = await getRiskProfile(co, null); await saveRiskProfile(co.id, rp, 'crawl'); row.risiko = rp.ratingLabel + ' (' + rp.score + ')'; log('profil risiko disimpan: ' + rp.ratingLabel + ' (skor ' + rp.score + ')'); } catch (e) { log('profil risiko gagal: ' + e.message); }
+      mark('crawl');
+      }
 
       // Analisis AI hanya dibuat ulang bila ada berita baru, atau belum ada analisis format FAP, atau yang ada sudah > 24 jam (hemat token).
       const lastAna = doAnalysis ? await latestAnalysis(co.id).catch(() => null) : null;
       const anaFresh = lastAna && lastAna.verifikasi && Date.now() - new Date(lastAna.generatedAt).getTime() < 24 * 3600 * 1000;
-      if (doAnalysis && anaFresh && (row.newItems || 0) === 0) {
+      if (stepDone('analysis')) { row.analysis = 'sudah selesai (dilewati)'; log('analisis AI sudah selesai pada run sebelumnya: dilewati'); }
+      else if (doAnalysis && anaFresh && (row.newItems || 0) === 0) {
         row.analysis = 'dilewati (tidak ada berita baru)';
+        mark('analysis');
         log('analisis AI dilewati: tidak ada berita baru dan analisis masih segar (< 24 jam)');
       } else if (doAnalysis) {
         try {
           const fin = co.type === 'public' && co.ticker ? await getFinancials(co.ticker).catch(() => null) : null;
           await saveAnalysis(co.id, await generateAnalysis(co, fin));
           row.analysis = 'dibuat';
+          mark('analysis');
           log('analisis AI dibuat');
         } catch (e) { row.analysis = 'gagal: ' + e.message; log(`analisis AI gagal: ${e.message}`); }
       }
+
+      // Dossier korporasi (4 bagian) memakai isi berita yang baru saja disimpan dan dinilai, jadi dibuat paling akhir.
+      // Dilewati hanya bila tidak ada berita baru dan dossier yang ada masih segar (< 24 jam), agar hemat token.
+      if (stepDone('dossier')) { row.dossier = 'sudah selesai (dilewati)'; log('dossier sudah selesai pada run sebelumnya: dilewati'); }
+      else if (doDossier) {
+        const lastD = await getCompanyDossier(co.id).catch(() => null);
+        const dFresh = lastD?.generated_at && Date.now() - new Date(lastD.generated_at).getTime() < 24 * 3600 * 1000;
+        if (dFresh && (row.newItems || 0) === 0) { row.dossier = 'dilewati (tidak ada berita baru)'; mark('dossier'); log('dossier dilewati: tidak ada berita baru dan dossier masih segar (< 24 jam)'); }
+        else {
+          try {
+            const d = await generateCompanyDossier(co.id, { signal: ctx.signal });
+            row.dossier = d.stats.total_items + ' temuan';
+            mark('dossier');
+            log('dossier dibuat: ' + d.stats.total_items + ' temuan (' + d.stats.verified_count + ' terverifikasi dokumen/profil)');
+          } catch (e) { if (e.code === 'CANCELLED') throw e; row.dossier = 'gagal: ' + e.message; log('dossier gagal: ' + e.message); }
+        }
+      }
+
+      // Langkah yang gagal (mis. model AI sibuk) menjadikan perusahaan ini GAGAL: tidak masuk checkpoint, job berstatus gagal-sebagian, dan Lanjutkan hanya mengulang ini.
+      const failedSteps = [/^gagal/.test(row.analysis) && 'analisis AI', /^gagal/.test(row.dossier) && 'dossier'].filter(Boolean);
+      if (failedSteps.length) throw new Error(failedSteps.join(' dan ') + ' gagal (langkah lain sudah tersimpan)');
     } catch (e) {
       if (e.code === 'CANCELLED') throw e;
       row.status = 'error: ' + e.message;
@@ -433,7 +424,7 @@ async function forEachCompany(opts, ctx, label, fn) {
     progress({ stage: 'company', done: i, total: companies.length, company: co.name, companyIndex: i + 1, companyTotal: companies.length });
     log('── [' + (i + 1) + '/' + companies.length + '] ' + co.name);
     try { rows.push({ company: co.ticker || co.id, ...(await fn(co)), status: 'ok' }); ctx.checkpoint?.({ done: co.id }); }
-    catch (e) { if (e.code === 'CANCELLED') throw e; rows.push({ company: co.ticker || co.id, status: 'error: ' + e.message }); log(co.name + ' gagal: ' + e.message); }
+    catch (e) { if (e.code === 'CANCELLED') throw e; rows.push({ company: co.ticker || co.id, ...(e.row || {}), status: 'error: ' + e.message }); log(co.name + ' gagal: ' + e.message); }      // tidak masuk checkpoint: Lanjutkan mengulang hanya yang gagal
   }
   progress({ stage: 'company', done: companies.length, total: companies.length });
   return rows;
@@ -465,117 +456,173 @@ export async function runFinancial(opts = {}, ctx = {}) {
   return finishSimple('financial', rows, ctx);
 }
 
-// Ambil gambar artikel (og:image) untuk berita yang belum punya.
-export async function runImages(opts = {}, ctx = {}) {
-  const rows = await forEachCompany(opts, ctx, 'ambil gambar artikel', async (co) => {
-    const r = await enrichImages(co.id, 150);
-    ctx.log?.('gambar ditemukan ' + r.found + ' dari ' + r.checked + ' artikel dicek');
-    return { dicek: r.checked, ditemukan: r.found };
+// Ambil isi artikel (content_html) dan gambar (og:image) untuk berita yang belum punya, dari satu kali unduh per artikel. Tanpa AI, URL tidak diubah.
+// opts.retry (default true): ikut mencoba lagi yang gagal sebelumnya. Jalur 'ai' ikut dikunci supaya klasifikasi tidak jalan sebelum isinya ada.
+export async function runContent(opts = {}, ctx = {}) {
+  const limit = clamp(num(opts.limit, 300), 1, 2000);
+  const rows = await forEachCompany(opts, ctx, 'ambil isi & gambar artikel', async (co) => {
+    const r = await enrichContentHtml(co.id, { limit, retry: opts.retry !== false, signal: ctx.signal });
+    ctx.log?.('isi tersimpan ' + r.content + ', gambar ' + r.images + ', alamat penerbit diselesaikan ' + r.resolved + ' dari ' + r.checked + ' berita dicek' + (r.unresolved ? '; ' + r.unresolved + ' tautan Google belum bisa diselesaikan' : ''));
+    if (r.stoppedByRateLimit) ctx.log?.('Google membatasi permintaan (429): sisa berita dihentikan, jalankan lagi beberapa menit lagi');
+    return { dicek: r.checked, isiTersimpan: r.content, gambar: r.images, alamatDiselesaikan: r.resolved, belumSelesai: r.unresolved };
   });
-  return finishSimple('images', rows, ctx);
+  return finishSimple('content', rows, ctx);
+}
+
+// Analisis AI satu perusahaan (data keuangan + berita 30 hari), disimpan sebagai riwayat.
+async function analyzeCompany(co, ctx) {
+  const fin = co.type === 'public' && co.ticker ? await getFinancials(co.ticker).catch(() => null) : null;
+  const a = await generateAnalysis(co, fin);
+  await saveAnalysis(co.id, a);
+  ctx.log?.('analisis dibuat: ' + a.headline);
+  return a;
 }
 
 // Buat ulang analisis AI semua perusahaan (data keuangan + berita 30 hari).
 export async function runAnalysisAll(opts = {}, ctx = {}) {
   const delay = clamp(num(opts.delayMs, 3000), 0, 600_000);
   const rows = await forEachCompany(opts, ctx, 'analisis AI', async (co) => {
-    const fin = co.type === 'public' && co.ticker ? await getFinancials(co.ticker).catch(() => null) : null;
-    const a = await generateAnalysis(co, fin);
-    await saveAnalysis(co.id, a);
-    ctx.log?.('dibuat: ' + a.headline);
+    const a = await analyzeCompany(co, ctx);
     await sleepAbortable(delay, ctx.signal);
     return { kondisi: a.kondisi, berita: a.newsCount };
   });
   return finishSimple('analysis', rows, ctx);
 }
 
-// Klasifikasi ulang berita yang AI-nya gagal/dilewati (mis. kuota Groq habis saat crawl).
-export async function runReclassify(opts = {}, ctx = {}) {
+// Klasifikasi AI satu perusahaan untuk berita yang belum dinilai / formatnya lama (maks. 300 per jalan). Isi artikel (content_html) ikut dibaca AI.
+async function reclassifyCompany(co, opts, ctx) {
   const chunk = clamp(num(opts.aiChunk, 60), 1, 200);
   const delay = clamp(num(opts.aiDelayMs, 3000), 0, 600_000);
-  const rows = await forEachCompany(opts, ctx, 'klasifikasi ulang', async (co) => {
-    const [todo] = await db().query(
-      "SELECT url, title, snippet, source_name, source_domain, image_url, UNIX_TIMESTAMP(sort_at) AS ts FROM news_items WHERE company_id = ? AND content_kind <> 'konsumen' AND " + INCOMPLETE_SQL + " ORDER BY sort_at DESC LIMIT 300",
-      [co.id],
-    );
-    ctx.log?.(todo.length + ' berita belum terklasifikasi');
-    let ok = 0, bad = 0;
-    for (let i = 0; i < todo.length; i += chunk) {
-      throwIfAborted(ctx.signal);
-      const items = todo.slice(i, i + chunk).map((r, k) => ({
-        id: k + 1, platform: r.source_name || r.source_domain || '', url: r.url, title: r.title, snippet: r.snippet,
-        text: [r.title, r.snippet].filter(Boolean).join(' — '), date: new Date(r.ts * 1000).toISOString(),
-        sourceName: r.source_name, image: r.image_url || undefined,
-      }));
-      const out = await classifyItems(items, { ...co, keyword: (co.aliases || []).join(', ') });
-      await saveNews(co.id, out, { dedupe: false });
-      ok += out.filter((o) => !o.ai?.error).length; bad += out.filter((o) => o.ai?.error).length;
-      ctx.log?.('batch ' + (Math.floor(i / chunk) + 1) + '/' + Math.ceil(todo.length / chunk) + ': ' + ok + ' ok, ' + bad + ' gagal');
-      if (i + chunk < todo.length) await sleepAbortable(delay, ctx.signal);
-    }
-    return { diproses: todo.length, berhasil: ok, gagal: bad };
-  });
+  const [todo] = await db().query(
+    "SELECT url, title, snippet, content_html, source_name, source_domain, image_url, UNIX_TIMESTAMP(sort_at) AS ts FROM news_items WHERE company_id = ? AND " + INCOMPLETE_SQL + " ORDER BY sort_at DESC LIMIT 300",
+    [co.id],
+  );
+  ctx.log?.(todo.length + ' berita belum terklasifikasi');
+  let ok = 0, bad = 0;
+  for (let i = 0; i < todo.length; i += chunk) {
+    throwIfAborted(ctx.signal);
+    const items = todo.slice(i, i + chunk).map((r, k) => ({
+      id: k + 1, platform: r.source_name || r.source_domain || '', url: r.url, title: r.title, snippet: r.snippet, fullContent: htmlToText(r.content_html) || undefined,
+      text: [r.title, r.snippet].filter(Boolean).join(' — '), date: new Date(r.ts * 1000).toISOString(),
+      sourceName: r.source_name, image: r.image_url || undefined,
+    }));
+    const out = await classifyItems(items, { ...co, keyword: (co.aliases || []).join(', ') });
+    await saveNews(co.id, out, { dedupe: false });
+    ok += out.filter((o) => !o.ai?.error).length; bad += out.filter((o) => o.ai?.error).length;
+    ctx.log?.('batch ' + (Math.floor(i / chunk) + 1) + '/' + Math.ceil(todo.length / chunk) + ': ' + ok + ' ok, ' + bad + ' gagal');
+    if (i + chunk < todo.length) await sleepAbortable(delay, ctx.signal);
+  }
+  return { diproses: todo.length, berhasil: ok, gagal: bad };
+}
+
+// Klasifikasi ulang berita yang AI-nya gagal/dilewati (mis. kuota Groq habis saat crawl).
+export async function runReclassify(opts = {}, ctx = {}) {
+  const rows = await forEachCompany(opts, ctx, 'klasifikasi ulang', (co) => reclassifyCompany(co, opts, ctx));
   return finishSimple('reclassify', rows, ctx);
 }
 
-// Hitung ulang tag risiko untuk semua berita tersimpan (aturan, tanpa AI, cepat). Dipakai setelah aturan risiko diubah.
+// Lengkapi data yang sudah tersimpan (mis. hasil crawl lama sebelum isi artikel, klasifikasi, analisis, dan dossier ada).
+// Per perusahaan, urutannya sama dengan crawl: isi & gambar -> klasifikasi AI -> analisis AI -> dossier. Tiap langkah memakai hasil langkah sebelumnya.
+// CHECKPOINT PER LANGKAH: tiap langkah yang beres dicatat. Bila ada yang gagal (mis. model AI sibuk), perusahaan itu dianggap GAGAL (tidak masuk checkpoint),
+// job berstatus gagal-sebagian, dan Lanjutkan hanya mengulang perusahaan itu, mulai dari langkah yang belum beres.
+export async function runBackfill(opts = {}, ctx = {}) {
+  const limit = clamp(num(opts.limit, 300), 1, 2000);
+  const delay = clamp(num(opts.delayMs, 2000), 0, 600_000);
+  const log = ctx.log || (() => {});
+  const rows = await forEachCompany(opts, ctx, 'lengkapi data tersimpan', async (co) => {
+    const row = {}, errors = [];
+    const done = (st) => Boolean(opts.skipSteps?.[co.id]?.includes(st));
+    const mark = (st) => ctx.checkpoint?.({ company: co.id, step: st });
+    const failNow = (msg) => { throw Object.assign(new Error(msg), { row }); };
+
+    if (done('content')) log('1/4 isi & gambar artikel: sudah selesai, dilewati');
+    else {
+      log('1/4 ambil isi & gambar artikel');
+      const c = await enrichContentHtml(co.id, { limit, retry: opts.retry !== false, signal: ctx.signal });
+      row.isiTersimpan = c.content; row.gambar = c.images; row.alamatDiselesaikan = c.resolved;
+      if (c.stoppedByRateLimit) log('Google membatasi permintaan (429): sebagian tautan menyusul lain kali');
+      throwIfAborted(ctx.signal);
+      mark('content');
+    }
+
+    if (done('classify')) log('2/4 klasifikasi AI: sudah selesai, dilewati');
+    else {
+      log('2/4 klasifikasi AI');
+      const r = await reclassifyCompany(co, opts, ctx);
+      row.dinilaiAI = r.berhasil; row.gagalAI = r.gagal;
+      if (r.diproses > 0 && r.berhasil === 0) failNow('klasifikasi AI gagal total (AI tidak menjawab); analisis dan dossier ditunda');
+      if (r.gagal > 0) errors.push(r.gagal + ' berita gagal diklasifikasi');       // sebagian: lanjut, tapi langkah ini belum ditandai selesai
+      else mark('classify');
+      throwIfAborted(ctx.signal);
+    }
+
+    if (done('analysis')) log('3/4 analisis AI: sudah selesai, dilewati');
+    else {
+      log('3/4 analisis AI');
+      try { const a = await analyzeCompany(co, ctx); row.analisis = a.kondisi; mark('analysis'); }
+      catch (e) { if (e.code === 'CANCELLED') throw e; row.analisis = 'gagal: ' + e.message; errors.push('analisis AI gagal'); log('analisis gagal: ' + e.message); }
+      throwIfAborted(ctx.signal);
+    }
+
+    if (done('dossier')) log('4/4 dossier: sudah selesai, dilewati');
+    else {
+      log('4/4 dossier korporasi');
+      try { const d = await generateCompanyDossier(co.id, { signal: ctx.signal }); row.dossier = d.stats.total_items + ' temuan'; mark('dossier'); log('dossier dibuat: ' + d.stats.total_items + ' temuan'); }
+      catch (e) { if (e.code === 'CANCELLED') throw e; row.dossier = 'gagal: ' + e.message; errors.push('dossier gagal'); log('dossier gagal: ' + e.message); }
+    }
+
+    if (errors.length) failNow(errors.join('; ') + ' (langkah lain sudah tersimpan)');
+    await sleepAbortable(delay, ctx.signal);
+    return row;
+  });
+  return finishSimple('backfill', rows, ctx);
+}
+
+// Hitung ulang keterkaitan nama (judul + cuplikan + isi artikel), platform, dan jenis konten untuk semua berita tersimpan (tanpa AI, cepat).
+// Berita yang BELUM dinilai AI (termasuk hasil AI lama tanpa company_role, yang tag/dampaknya berasal dari kata kunci) dibersihkan dari tag risiko,
+// dampak, dan penanda "konsumen" lama (dikosongkan, bukan ditebak); hasil penilaian AI format baru tidak pernah ditimpa.
+const NEW_AI = "ai_status = 'ok' AND company_role IS NOT NULL";
 export async function runRescore(opts = {}, ctx = {}) {
-  const rows = await forEachCompany(opts, ctx, 'hitung ulang keterkaitan & tag risiko', async (co) => {
+  const rows = await forEachCompany(opts, ctx, 'hitung ulang keterkaitan nama & bersihkan hasil kata kunci', async (co) => {
     const match = buildMatcher(co);
-    const [items] = await db().query('SELECT id, title, snippet, url, source_domain, credibility_tier FROM news_items WHERE company_id = ?', [co.id]);
-    let tagged = 0, related = 0, konsumen = 0;
+    const [items] = await db().query('SELECT id, title, snippet, LEFT(content_html, 30000) AS content_html, url, source_domain, credibility_tier FROM news_items WHERE company_id = ?', [co.id]);
+    let related = 0;
     for (const it of items) {
       throwIfAborted(ctx.signal);
-      const text = it.title + ' ' + (it.snippet || '');
-      const tags = riskTags(text);
-      const rel = match(text);
-      if (tags.length) tagged++;
+      const rel = match(it.title + ' ' + (it.snippet || '') + ' ' + htmlToText(it.content_html));
       if (rel.related) related++;
       let host = it.source_domain; try { host ||= new URL(it.url).hostname; } catch { /* host kosong */ }
       const platform = platformOf({ domain: host, tier: it.credibility_tier });
-      const kind = contentKind({ title: it.title, snippet: it.snippet, tier: it.credibility_tier, platform });
-      if (kind === 'konsumen') konsumen++;
-      await db().query('UPDATE news_items SET risk_tags = ?, risk_level = ?, related = ?, related_via = ?, title_hash = ?, platform = ?, content_kind = ? WHERE id = ?',
-        [tags.length ? JSON.stringify(tags) : null, maxSeverity(tags), rel.related ? 1 : 0, rel.via, createHash('sha1').update(normTitle(it.title)).digest(), platform, kind, it.id]);
+      const kind = contentKind({ tier: it.credibility_tier, platform });
+      await db().query(
+        `UPDATE news_items SET related = ?, related_via = ?, title_hash = ?, platform = ?,
+           risk_tags = IF(${NEW_AI}, risk_tags, NULL), risk_level = IF(${NEW_AI}, risk_level, 0),
+           impact = IF(${NEW_AI}, impact, NULL), impact_reason = IF(${NEW_AI}, impact_reason, NULL),
+           content_kind = IF(${NEW_AI} AND content_kind = 'konsumen', 'konsumen', ?) WHERE id = ?`,
+        [rel.related ? 1 : 0, rel.via, createHash('sha1').update(normTitle(it.title)).digest(), platform, kind, it.id],
+      );
     }
-    ctx.log?.(items.length + ' berita mentah: ' + related + ' terkait (cleaned), ' + (items.length - related) + ' tidak terkait; ' + tagged + ' bertag risiko; ' + konsumen + ' konten tutorial/konsumen disaring');
-    return { mentah: items.length, terkait: related, tidakTerkait: items.length - related, bertagRisiko: tagged, konsumenDisaring: konsumen };
+    const [[st]] = await db().query(`SELECT SUM(${NEW_AI}) dinilai, SUM(NOT (${NEW_AI})) belum, SUM(content_kind = 'konsumen') konsumen FROM news_items WHERE company_id = ?`, [co.id]);
+    ctx.log?.(items.length + ' berita mentah: ' + related + ' menyebut perusahaan/pemangku kepentingan; ' + st.dinilai + ' sudah dinilai AI, ' + st.belum + ' belum dinilai (tanpa tag risiko/dampak); ' + st.konsumen + ' ditandai konsumen oleh AI');
+    return { mentah: items.length, menyebutNama: related, dinilaiAI: Number(st.dinilai), belumDinilai: Number(st.belum), konsumenOlehAI: Number(st.konsumen) };
   });
   return finishSimple('rescore', rows, ctx);
 }
 
-// Buang duplikat yang sudah terlanjur tersimpan: judul sama persis, lalu judul mirip (Jaccard > 0.8, jarak <= 14 hari).
-// Yang dipertahankan: yang sudah dinilai AI, lalu yang punya gambar, lalu yang paling awal tersimpan.
-export async function runDedupe(opts = {}, ctx = {}) {
-  let totalDeleted = 0;
-  const rows = await forEachCompany(opts, ctx, 'buang duplikat', async (co) => {
-    const [items] = await db().query('SELECT id, title, ai_status, image_url, sort_at FROM news_items WHERE company_id = ?', [co.id]);
-    const score = (r) => (r.ai_status === 'ok' ? 4 : 0) + (r.image_url ? 2 : 0);
-    const ordered = [...items].sort((x, y) => score(y) - score(x) || x.id - y.id);
-    const keptExact = new Map();
-    const kept = [];
-    const del = [];
-    let exact = 0, near = 0;
-    for (const r of ordered) {
-      throwIfAborted(ctx.signal);
-      const key = normTitle(r.title);
-      if (keptExact.has(key)) { del.push(r.id); exact++; continue; }
-      const tk = titleTokens(r.title);
-      const t = new Date(r.sort_at).getTime();
-      if (kept.some((k) => Math.abs(k.t - t) <= 14 * 86400000 && jaccard(tk, k.tk) > NEAR_DUP)) { del.push(r.id); near++; continue; }
-      keptExact.set(key, true);
-      kept.push({ tk, t });
-    }
-    for (let i = 0; i < del.length; i += 500) await db().query('DELETE FROM news_items WHERE id IN (?)', [del.slice(i, i + 500)]);
-    totalDeleted += del.length;
-    ctx.log?.(items.length + ' berita: ' + exact + ' duplikat persis dan ' + near + ' mirip dibuang, tersisa ' + (items.length - del.length));
-    return { sebelum: items.length, duplikatPersis: exact, duplikatMirip: near, sesudah: items.length - del.length };
+// Ekstrak dossier korporasi 4-bagian (Pemilik manfaat, Klien/proyek, Akta/korporasi, Fasilitas bank) untuk semua perusahaan.
+export async function runDossierAll(opts = {}, ctx = {}) {
+  const delay = clamp(num(opts.delayMs, 2000), 0, 600_000);
+  const rows = await forEachCompany(opts, ctx, 'ekstrak dossier korporasi', async (co) => {
+    const d = await generateCompanyDossier(co.id, { signal: ctx.signal });
+    ctx.log?.('dossier dibuat: ' + d.stats.total_items + ' item (' + d.stats.verified_count + ' terverifikasi dokumen/profil)');
+    await sleepAbortable(delay, ctx.signal);
+    return { totalItem: d.stats.total_items, terverifikasi: d.stats.verified_count, belumVerifikasi: d.stats.unverified_count };
   });
-  return finishSimple('dedupe', rows, ctx, { totalDibuang: totalDeleted });
+  return finishSimple('dossier', rows, ctx);
 }
 
 // ─── Job manager (di memori, satu job aktif sekaligus) ─
-const RUNNERS = { simulate: runSimulate, cron: runCron, portfolio: runPortfolio, images: runImages, analysis: runAnalysisAll, reclassify: runReclassify, rescore: runRescore, dedupe: runDedupe, financial: runFinancial };
+const RUNNERS = { cron: runCron, portfolio: runPortfolio, content: runContent, analysis: runAnalysisAll, reclassify: runReclassify, rescore: runRescore, financial: runFinancial, dossier: runDossierAll, backfill: runBackfill };
 const ACTIVE = new Set(['running', 'waiting']);
 const JOBS = new Map();
 const MAX_KEEP = 20;
@@ -589,26 +636,48 @@ const MAX_LOGS = 500;
 export function lanesOf(type, opts = {}) {
   switch (type) {
     case 'portfolio': return opts.classify === false && opts.analysis === false ? ['crawl'] : ['crawl', 'ai'];
-    case 'reclassify': case 'analysis': return ['ai'];
-    case 'images': case 'financial': return ['crawl'];
-    case 'rescore': case 'dedupe': return ['db'];
-    default: return ['crawl', 'ai'];            // simulate / cron
+    case 'reclassify': case 'analysis': case 'dossier': return ['ai'];
+    case 'backfill': return ['crawl', 'ai'];          // mengambil isi lalu AI membacanya: keduanya terkunci
+    case 'content': return ['crawl', 'ai'];            // mengambil isi & gambar: AI membaca isi itu, jadi tidak boleh berjalan bersamaan dengan job AI
+    case 'financial': return ['crawl'];
+    case 'rescore': return ['db'];
+    default: return ['crawl', 'ai'];            // cron
   }
 }
 const lanesConflict = (a, b) => a.includes('db') || b.includes('db') || a.some((l) => b.includes(l));
 
-const MULTI = new Set(['portfolio', 'images', 'analysis', 'reclassify', 'rescore', 'dedupe', 'financial']);
+const MULTI = new Set(['portfolio', 'content', 'analysis', 'reclassify', 'rescore', 'financial', 'dossier', 'backfill']);
+// Sudah pernah dilanjutkan (ada job lain yang resumedFrom-nya job ini): tidak boleh dilanjutkan dua kali.
+const resumedBy = (id) => [...JOBS.values()].some((j) => j.resumedFrom === id);
 export function publicJob(job) {
-  const { _controller, ...rest } = job;
+  const { _controller, _chain, ...rest } = job;
   const cp = job.checkpoint || { done: [], total: 0 };
-  // Bisa dilanjutkan: job multi-perusahaan yang berhenti sebelum semua perusahaan selesai
+  // Bisa dilanjutkan: job multi-perusahaan yang berhenti sebelum semua perusahaan selesai dan belum pernah dilanjutkan
   rest.lanes = job.lanes || lanesOf(job.type, job.opts);
-  rest.resumable = MULTI.has(job.type) && ['interrupted', 'cancelled', 'error'].includes(job.status) && cp.total > 0 && cp.done.length < cp.total;
+  rest.resumable = MULTI.has(job.type) && ['interrupted', 'cancelled', 'error'].includes(job.status) && cp.total > 0 && cp.done.length < cp.total && !resumedBy(job.id);
   return rest;
 }
 
 // Simpan status job ke DB (tahan restart). Kesalahan DB tidak boleh menghentikan job.
-const persist = (job) => saveJobRun(job).catch((e) => console.error('[db] saveJobRun:', e.message));
+// Penyimpanan per job diantrekan (satu per satu, selalu memakai keadaan TERBARU saat giliran tiba) supaya snapshot lama tidak menimpa snapshot baru,
+// dan beatAt (detak terakhir) ikut tersimpan: dipakai untuk mengetahui kapan job benar-benar berhenti bila server mati mendadak.
+const persist = (job) => {
+  job.progress = { ...job.progress, beatAt: Date.now() };
+  job._chain = (job._chain || Promise.resolve()).then(() => saveJobRun(job)).catch((e) => console.error('[db] saveJobRun:', e.message));
+  return job._chain;
+};
+
+// Dipanggil saat server dimatikan baik-baik (Ctrl+C / restart): tandai semua job aktif 'interrupted' dengan checkpoint terbaru, lalu tunggu tersimpan.
+export async function flushJobs() {
+  const active = [...JOBS.values()].filter((j) => ACTIVE.has(j.status));
+  await Promise.all(active.map((j) => j._chain));
+  const now = Date.now();
+  await Promise.all(active.map((j) => saveJobRun({
+    ...j, status: 'interrupted', finishedAt: now, progress: { ...j.progress, beatAt: now },
+    logs: [...j.logs, `${new Date(now).toLocaleTimeString('id-ID', { hour12: false })}  server dihentikan: job ditandai terputus, bisa dilanjutkan dari checkpoint`],
+  }).catch((e) => console.error('[db] flushJobs:', e.message))));
+  return active.length;
+}
 
 // Dipanggil sekali saat server start: tandai job yang terputus dan muat riwayat terakhir supaya log & tombol Lanjutkan tersedia.
 export async function recoverJobs() {
@@ -627,12 +696,13 @@ export function resumeJob(id) {
   const old = JOBS.get(id);
   if (!old) throw Object.assign(new Error('job tidak ditemukan'), { status: 404 });
   if (!publicJob(old).resumable) throw Object.assign(new Error('job ini tidak bisa dilanjutkan'), { status: 400 });
-  return startJob(old.type, { ...old.opts, skipCompanies: old.checkpoint.done }, { resumedFrom: old.id, done: old.checkpoint.done, total: old.checkpoint.total });
+  return startJob(old.type, { ...old.opts, skipCompanies: old.checkpoint.done, skipSteps: old.checkpoint.steps || {} }, { resumedFrom: old.id, done: old.checkpoint.done, total: old.checkpoint.total, steps: old.checkpoint.steps });
 }
 
 export function listJobs() {
   return [...JOBS.values()].sort((a, b) => b.createdAt - a.createdAt).map((j) => ({
-    id: j.id, type: j.type, status: j.status, createdAt: j.createdAt, finishedAt: j.finishedAt, progress: j.progress,
+    id: j.id, type: j.type, status: j.status, createdAt: j.createdAt, startedAt: j.startedAt || j.createdAt, finishedAt: j.finishedAt, progress: j.progress,
+    opts: { companies: j.opts?.companies, classify: j.opts?.classify },
     lanes: j.lanes || lanesOf(j.type, j.opts), cancelRequested: Boolean(j.cancelRequested), checkpoint: j.checkpoint, resumable: publicJob(j).resumable, resumedFrom: j.resumedFrom || null,
   }));
 }
@@ -662,7 +732,7 @@ export function startJob(type, opts = {}, meta = {}) {
     id: randomUUID().slice(0, 8), type, opts, status: 'running',
     createdAt: Date.now(), startedAt: Date.now(), finishedAt: null,
     progress: {}, logs: [], reports: [], error: null, _controller: controller,
-    checkpoint: { done: [...(meta.done || [])], total: meta.total || 0 }, resumedFrom: meta.resumedFrom || null, lanes,
+    checkpoint: { done: [...(meta.done || [])], total: meta.total || 0, steps: JSON.parse(JSON.stringify(meta.steps || {})) }, resumedFrom: meta.resumedFrom || null, lanes,
   };
   persist(job);
   const saveTimer = setInterval(() => persist(job), 15_000);       // log & progres tetap tersimpan walau server mati mendadak
@@ -680,16 +750,27 @@ export function startJob(type, opts = {}, meta = {}) {
       job.status = p.stage === 'waiting' ? 'waiting' : 'running';
     },
     onReport: (r) => { job.reports.push(r); if (job.reports.length > 5) job.reports.shift(); },
-    checkpoint: ({ done, total }) => {
+    checkpoint: ({ done, total, company, step }) => {
+      job.checkpoint.steps ||= {};                                   // langkah yang sudah beres per perusahaan: {id: ['content','classify',...]}
       if (total) job.checkpoint.total = total;
-      if (done && !job.checkpoint.done.includes(done)) job.checkpoint.done.push(done);
+      if (company && step) { const a = (job.checkpoint.steps[company] ||= []); if (!a.includes(step)) a.push(step); }
+      if (done) { delete job.checkpoint.steps[done]; if (!job.checkpoint.done.includes(done)) job.checkpoint.done.push(done); }      // perusahaan selesai penuh: catatan langkahnya tidak perlu lagi
       persist(job);
     },
   };
 
   if (note) ctx.log(note);
   runner(opts, ctx)
-    .then(() => { job.status = controller.signal.aborted ? 'cancelled' : 'done'; })
+    .then((reports) => {
+      job.status = controller.signal.aborted ? 'cancelled' : 'done';
+      // Bila ada perusahaan yang gagal, job TIDAK dianggap selesai: status 'error' (gagal sebagian) supaya tombol Lanjutkan muncul dan hanya mengulang yang gagal.
+      const bad = (Array.isArray(reports) ? reports : []).flatMap((r) => r?.perWork || []).filter((w) => w && typeof w.status === 'string' && w.status !== 'ok');
+      if (bad.length && job.status === 'done') {
+        job.status = 'error';
+        job.error = ('Sebagian selesai: ' + bad.length + ' perusahaan gagal (' + bad.map((b) => b.company + ': ' + b.status.replace(/^error: /, '').slice(0, 80)).join('; ') + ')').slice(0, 500);
+        ctx.log(bad.length + ' perusahaan gagal. Tombol "Lanjutkan" hanya mengulang yang gagal; yang sudah selesai (termasuk langkah yang sudah beres) dilewati.');
+      }
+    })
     .catch((e) => {
       job.status = e.code === 'CANCELLED' ? 'cancelled' : 'error';
       if (job.status === 'error') { job.error = e.message; ctx.log(`ERROR: ${e.message}`); }

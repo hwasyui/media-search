@@ -2,7 +2,7 @@
 // Membaca data ada di store.js. Semua fungsi di sini idempoten: menyimpan ulang data yang sama tidak menggandakan baris.
 import { createHash } from 'node:crypto';
 import { db } from './db.js';
-import { maxSeverity, riskTags } from './risk.js';
+import { maxSeverity } from './risk.js';
 import { NEAR_DUP, buildMatcher, jaccard, normTitle, titleTokens } from './related.js';
 import { listCompanies } from './store.js';
 import { contentKind, platformOf } from './kind.js';
@@ -33,7 +33,7 @@ const youtubeThumb = (u) => {
 // Hasil AI yang sudah 'ok' tidak ditimpa oleh versi yang AI-nya gagal/dilewati.
 // Duplikat (judul sama/mirip dengan berita lain perusahaan yang sama, URL berbeda) TIDAK disimpan; yang tersimpan hanya yang pertama.
 // opts.dedupe = false dipakai saat memperbarui item yang sudah tersimpan (mis. hasil AI), agar tidak diperiksa ulang.
-const I_URL_HASH = 1, I_URL = 2, I_TITLE = 3, I_TITLE_HASH = 31, I_FOUND_VIA = 32;
+const I_URL_HASH = 1, I_URL = 2, I_TITLE = 3, I_TITLE_HASH = 31, I_FOUND_VIA = 32, I_CONTENT = 36, I_ART = 39;
 async function dropDuplicates(companyId, rows) {
   const hex = (b) => b.toString('hex');
   const tHash = (r) => {
@@ -74,6 +74,7 @@ export async function saveNews(companyId, items, opts = {}) {
   const company = (await listCompanies()).find((c) => c.id === companyId) || { name: companyId, aliases: [], stakeholders: [] };
   const matchRelated = buildMatcher(company);
   const nowUtc = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const origUrl = new Map();                      // baris -> tautan awal item (untuk droppedUrls); kolom url menyimpan alamat penerbit bila sudah diketahui
   const rows = items.filter((it) => it.url && it.title).map((it) => {
     const ai = it.ai || {};
     const cred = it.credibility || {};
@@ -81,14 +82,19 @@ export async function saveNews(companyId, items, opts = {}) {
     const host = cred.host || '';
     const sourceKey = it.sourceKey || (/(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? 'youtube' : cred.key === 'social_forum' ? 'social_media' : 'news');
     const snippet = it.snippet ?? (it.text && it.text !== it.title ? it.text.replace(it.title, '').replace(/^\s*[—-]\s*/, '') : null);
-    const tags = riskTags((it.title || '') + ' ' + (snippet0(it) || ''));
-    const rel = matchRelated((it.title || '') + ' ' + (snippet0(it) || ''));
+    // Tag risiko hanya dari AI (membaca isi artikel). Berita yang belum/gagal dinilai AI tidak diberi tag (bukan ditebak dari kata kunci).
+    const tags = aiStatus === 'ok' && Array.isArray(ai.risk_items)
+      ? ai.risk_items.map((x) => ({ cat: x.category, severity: x.severity, hit: x.evidence })).sort((a, b) => b.severity - a.severity)
+      : [];
+    // Pencocokan nama (fakta, bukan tafsir) kini juga membaca isi artikel, bukan hanya judul+cuplikan. Ini hanya penentu tampilan SEBELUM AI menilai;
+    // setelah dinilai AI, relevansi ditentukan AI dari isi (lihat VIEW news_cleaned).
+    const rel = matchRelated((it.title || '') + ' ' + (snippet0(it) || '') + ' ' + (it.fullContent || ''));
     const platform = platformOf({ domain: domainOf(it.sourceUrl) || host, tier: cred.key });
-    const kind = contentKind({ title: it.title, snippet: snippet0(it), tier: cred.key, platform });
+    const kind = aiStatus === 'ok' && ai.konten_konsumen ? 'konsumen' : contentKind({ tier: cred.key, platform });
     const imageUrl = it.image || youtubeThumb(it.url) || null;
     const sourceDomain = domainOf(it.sourceUrl) || (/(^|\.)news\.google\.com$/.test(host) ? null : host.replace(/^www\./, '')) || null;
-    return [
-      companyId, sha1(it.canonical || it.url), trunc(it.url, 2048), trunc(it.title, 1000), snippet || null,
+    const row = [
+      companyId, sha1(it.canonical || it.url), trunc(it.articleUrl || it.url, 2048), trunc(it.title, 1000), snippet || null,
       trunc(it.sourceName || it.platform || host, 255), sourceKey, trunc(it.keyword || it.matchedKeywords?.join(', '), 255), trunc(it.modifier, 40), toDate(it.date), nowUtc,
       cred.key || null, cred.score ?? null, ai.impact || null, trunc(ai.impact_reason, 500), trunc(ai.status_line, 500),
       aiStatus, trunc(ai.error, 500),
@@ -98,12 +104,17 @@ export async function saveNews(companyId, items, opts = {}) {
       trunc(imageUrl, 1024), trunc(sourceDomain, 255), tags.length ? JSON.stringify(tags) : null, maxSeverity(tags),
       rel.related ? 1 : 0, trunc(rel.via, 120), sha1(normTitle(it.title)),
       it.via?.length ? JSON.stringify(it.via) : null, nowUtc, platform, kind,
+      it.contentHtml || null,
+      aiStatus === 'ok' ? (ai.summary ?? '') : null, aiStatus === 'ok' ? ai.company_role || null : null,
+      it.articleUrl ? trunc(it.articleUrl, 2048) : null, it.linkError || null,
     ];
+    origUrl.set(row, it.url);
+    return row;
   });
   let rowsToSave = rows, droppedUrls = [];
   if (opts.dedupe !== false) {
     const { kept, dropped } = await dropDuplicates(companyId, rows);
-    rowsToSave = kept; droppedUrls = dropped.map((d) => d.r[I_URL]);
+    rowsToSave = kept; droppedUrls = dropped.map((d) => origUrl.get(d.r) ?? d.r[I_URL]);
     // berita asli yang terlihat lagi di crawl ini: tambah hitungan, perbarui waktu terakhir, dan isi jejak penemuan bila masih kosong
     // Bila versi duplikat membawa cuplikan/gambar yang belum dimiliki berita aslinya (mis. Bing memberi cuplikan, Google News tidak), isinya digabung.
     // found_via digabung juga, sehingga tercatat SEMUA alat yang menemukan berita ini (maks. 10 jejak).
@@ -122,9 +133,9 @@ export async function saveNews(companyId, items, opts = {}) {
       existing.set(d.ex, merged);
       await db().query(
         `UPDATE news_items SET seen_count = seen_count + 1, last_seen_at = ?, found_via = ?,
-           snippet = IF(snippet IS NULL OR snippet = '', ?, snippet), image_url = COALESCE(image_url, ?), source_domain = COALESCE(source_domain, ?)
+           snippet = IF(snippet IS NULL OR snippet = '', ?, snippet), content_html = COALESCE(content_html, ?), url = IF(? IS NOT NULL, ?, url), article_url = COALESCE(article_url, ?), image_url = COALESCE(image_url, ?), source_domain = COALESCE(source_domain, ?)
          WHERE company_id = ? AND url_hash = UNHEX(?)`,
-        [nowUtc, merged.length ? JSON.stringify(merged) : null, d.r[4], d.r[25], d.r[26], companyId, d.ex],
+        [nowUtc, merged.length ? JSON.stringify(merged) : null, d.r[4], d.r[I_CONTENT], d.r[I_ART], d.r[I_ART], d.r[I_ART], d.r[25], d.r[26], companyId, d.ex],
       );
     }
   }
@@ -136,18 +147,22 @@ export async function saveNews(companyId, items, opts = {}) {
     await db().query(
       `INSERT INTO news_items (company_id,url_hash,url,title,snippet,source_name,source_key,keyword,modifier,published_at,fetched_at,
         credibility_tier,credibility_score,impact,impact_reason,status_line,ai_status,ai_error,relevant,category,sentiment,
-        confidence,reason,risk_signals,topic,image_url,source_domain,risk_tags,risk_level,related,related_via,title_hash,found_via,last_seen_at,platform,content_kind) VALUES ?
+        confidence,reason,risk_signals,topic,image_url,source_domain,risk_tags,risk_level,related,related_via,title_hash,found_via,last_seen_at,platform,content_kind,content_html,ai_summary,company_role,article_url,link_error) VALUES ?
        ON DUPLICATE KEY UPDATE
         published_at = COALESCE(VALUES(published_at), published_at),
-        risk_tags = VALUES(risk_tags), risk_level = VALUES(risk_level),
+        risk_tags = IF(VALUES(ai_status) <> 'ok' AND ai_status = 'ok', risk_tags, VALUES(risk_tags)),
+        risk_level = IF(VALUES(ai_status) <> 'ok' AND ai_status = 'ok', risk_level, VALUES(risk_level)),
+        url = IF(VALUES(article_url) IS NOT NULL, VALUES(url), url), article_url = COALESCE(article_url, VALUES(article_url)), link_error = IF(article_url IS NOT NULL OR VALUES(article_url) IS NOT NULL, NULL, COALESCE(VALUES(link_error), link_error)),
+        ai_summary = IF(VALUES(ai_status) = 'ok', VALUES(ai_summary), ai_summary), company_role = IF(VALUES(ai_status) = 'ok', VALUES(company_role), company_role),
         related = VALUES(related), related_via = VALUES(related_via), title_hash = VALUES(title_hash),
-        found_via = COALESCE(found_via, VALUES(found_via)), platform = VALUES(platform), content_kind = VALUES(content_kind),
+        found_via = COALESCE(found_via, VALUES(found_via)), platform = VALUES(platform), content_kind = IF(VALUES(ai_status) <> 'ok' AND ai_status = 'ok', content_kind, VALUES(content_kind)),
         ${seenClause},
         image_url = COALESCE(VALUES(image_url), image_url), source_domain = COALESCE(VALUES(source_domain), source_domain),
         source_name = COALESCE(VALUES(source_name), source_name), source_key = COALESCE(VALUES(source_key), source_key),
-        snippet = COALESCE(VALUES(snippet), snippet), keyword = COALESCE(VALUES(keyword), keyword),
+        snippet = COALESCE(VALUES(snippet), snippet), content_html = COALESCE(VALUES(content_html), content_html), keyword = COALESCE(VALUES(keyword), keyword),
         credibility_tier = COALESCE(VALUES(credibility_tier), credibility_tier), credibility_score = COALESCE(VALUES(credibility_score), credibility_score),
-        impact = COALESCE(VALUES(impact), impact), impact_reason = COALESCE(VALUES(impact_reason), impact_reason), status_line = COALESCE(VALUES(status_line), status_line),
+        impact = IF(VALUES(ai_status) <> 'ok' AND ai_status = 'ok', impact, COALESCE(VALUES(impact), impact)),
+        impact_reason = IF(VALUES(ai_status) <> 'ok' AND ai_status = 'ok', impact_reason, COALESCE(VALUES(impact_reason), impact_reason)), status_line = COALESCE(VALUES(status_line), status_line),
         ai_error = IF(VALUES(ai_status) = 'ok', NULL, VALUES(ai_error)),
         relevant = IF(VALUES(ai_status) = 'ok', VALUES(relevant), relevant),
         category = IF(VALUES(ai_status) = 'ok', VALUES(category), category),
@@ -226,7 +241,12 @@ export async function saveJobRun(j) {
 }
 // Dipanggil saat server start: job yang masih 'running' berarti prosesnya mati di tengah jalan.
 export async function markJobsInterrupted() {
-  const [r] = await db().query("UPDATE job_runs SET status = 'interrupted', finished_at = UTC_TIMESTAMP() WHERE status IN ('running','waiting')");
+  // finished_at = detak terakhir job (progress.beatAt, disimpan tiap beberapa detik), bukan waktu server hidup lagi, supaya durasi tidak menghitung waktu server mati.
+  const [r] = await db().query(
+    `UPDATE job_runs SET status = 'interrupted',
+       finished_at = COALESCE(FROM_UNIXTIME(JSON_UNQUOTE(JSON_EXTRACT(progress, '$.beatAt')) / 1000), UTC_TIMESTAMP())
+     WHERE status IN ('running','waiting')`,
+  );
   return r.affectedRows;
 }
 

@@ -1,17 +1,19 @@
 {
   "mcpServers": {
     "media-search-db": {
-      "command": "npx",
-      "args": ["-y", "@maxlmgc/mysql-mcp@1.0.9"],
+      "command": "node_modules/@toolbox-sdk/server-win32-x64/bin/toolbox.exe",
+      "args": [
+        "--config",
+        "mcp/tools.yaml",
+        "--stdio",
+        "--disable-version-check",
+        "--disable-reload"
+      ],
       "env": {
-        "MYSQL_HOST": "${MCP_DB_HOST:-localhost}",
-        "MYSQL_PORT": "${MCP_DB_PORT:-3306}",
-        "MYSQL_USER": "${MCP_DB_USER}",
-        "MYSQL_PASS": "${MCP_DB_PASSWORD}",
-        "MYSQL_DB": "media-search",
-        "MYSQL_READONLY": "true",
-        "MYSQL_MULTIPLE_STATEMENTS": "false",
-        "MYSQL_CONNECTION_LIMIT": "3"
+        "MCP_DB_HOST": "${MCP_DB_HOST:-localhost}",
+        "MCP_DB_PORT": "${MCP_DB_PORT:-3306}",
+        "MCP_DB_USER": "${MCP_DB_USER}",
+        "MCP_DB_PASSWORD": "${MCP_DB_PASSWORD}"
       }
     }
   }

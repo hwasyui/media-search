@@ -27,6 +27,7 @@
   .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
   .btn.pri:hover:not(:disabled){filter:brightness(1.1)}
   .btn+.btn{margin-top:8px}
+  .panel h4.sub{font-size:11px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin:16px 0 8px}
   .btn.warn{border-color:#5a3a3a;color:#f1a5a5}
   .term{background:#000;border:1px solid var(--line);display:flex;flex-direction:column;min-height:520px}
   .term-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#06080a;gap:10px;flex-wrap:wrap}
@@ -37,9 +38,20 @@
   .state.error{color:var(--red)} .state.error i{background:var(--red)}
   .state.cancelled,.state.interrupted{color:var(--amber)} .state.cancelled i,.state.interrupted i{background:var(--amber)}
   @keyframes blink{50%{opacity:.25}}
-  .chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:#06080a} .chips:empty{display:none}
-  .chip{font:11.5px ui-monospace,Menlo,monospace;padding:3px 9px;border:1px solid var(--line2);background:var(--panel);color:var(--muted);cursor:pointer}
-  .chip.on{border-color:var(--accent);color:var(--text)} .chip.old{opacity:.7} .chip.old i{display:none} .chip.rs{border-color:#8a6d1f;color:var(--amber)} .chip i{display:inline-block;width:7px;height:7px;background:var(--green);margin-right:6px;animation:blink 1s infinite}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:1px solid var(--line);background:#06080a}
+  .stat{padding:9px 14px;border-right:1px solid var(--line);min-width:0} .stat:last-child{border-right:0}
+  .stat small{display:block;font-size:10.5px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .stat b{display:block;font:600 14px ui-monospace,Menlo,Consolas,monospace;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat b.clock{font-size:18px;letter-spacing:.04em}
+  .note{padding:9px 14px;border-bottom:1px solid var(--line);background:#14110a;color:#e9c46a;font-size:12.5px;line-height:1.5} .note[hidden]{display:none}
+  .hist{border:1px solid var(--line);background:var(--panel);margin-top:14px}
+  .hist h4{padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .hrow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .hrow:last-child{border-bottom:0} .hrow:hover{background:var(--panel2)} .hrow.on{background:#101a29;box-shadow:inset 2px 0 var(--accent)}
+  .hrow .dot{width:8px;height:8px;background:var(--dim)} .hrow.running .dot{background:var(--green);animation:blink 1s infinite} .hrow.done .dot{background:var(--green)} .hrow.error .dot{background:var(--red)} .hrow.cancelled .dot,.hrow.interrupted .dot{background:var(--amber)}
+  .hrow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .hrow .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hrow .rt{text-align:right;font:12px ui-monospace,Menlo,monospace;color:var(--muted);white-space:nowrap} .hrow .rt b{display:block;color:var(--text);font-size:13px}
+  .hrow .rs{color:var(--amber)}
   .bar{height:3px;background:#12161b} .bar>div{height:100%;background:var(--accent);width:0;transition:width .4s}
   #log{flex:1;padding:14px 16px;overflow:auto;max-height:560px;font:12.5px/1.65 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
   #log .l{display:block} #log .t{color:var(--dim)} #log .h{color:#7db3ff;font-weight:700} #log .e{color:var(--red)} #log .ok{color:var(--green)} #log .w{color:var(--amber)}
@@ -66,25 +78,28 @@
       <h2>Panel kontrol</h2>
       <div class="panel">
         <h3>1. Crawl satuan (per perusahaan)</h3>
-        <p>Pilih satu perusahaan untuk diperbarui: data keuangan, berita, klasifikasi AI, gambar, dan analisis AI.</p>
+        <p>Satu perusahaan sekali jalan, berurutan: data keuangan → cari berita → ambil isi &amp; gambar artikel → klasifikasi AI → rating risiko → analisis AI → dossier.</p>
         <select id="company"></select>
         <button class="btn pri" id="goOne">▶ Mulai crawl perusahaan terpilih</button>
       </div>
       <div class="panel">
         <h3>2. Full crawl (semua perusahaan)</h3>
-        <p>Menjalankan semua perusahaan satu per satu (berurutan) dengan jeda antar perusahaan supaya sumber tidak membatasi akses. Berjalan di background.</p>
+        <p>Semua perusahaan satu per satu dengan urutan langkah yang sama seperti di atas, dengan jeda antar perusahaan supaya sumber tidak membatasi akses. Berjalan di background.</p>
         <button class="btn pri" id="goAll">▶ Mulai full batch crawl</button>
         <button class="btn" id="goAllRaw" title="Hanya mengambil dan menyimpan data mentah; AI bisa dijalankan terpisah dan bersamaan">▷ Full crawl tanpa AI (AI menyusul)</button>
       </div>
       <div class="panel">
-        <h3>3. Pipeline lanjutan</h3>
-        <p>Proses susulan untuk data yang sudah tersimpan, tanpa crawl ulang.</p>
-        <button class="btn" id="goReclass">✦ Klasifikasi ulang berita yang AI-nya gagal</button>
-        <button class="btn" id="goFin">$ Perbarui data keuangan semua emiten</button>
-        <button class="btn" id="goImages">▣ Ambil gambar artikel</button>
-        <button class="btn" id="goRescore">⚑ Hitung ulang keterkaitan &amp; tag risiko (tanpa AI)</button>
-        <button class="btn" id="goDedupe">⌫ Buang duplikat yang sudah tersimpan</button>
-        <button class="btn" id="goAnalysis">≣ Buat ulang analisis AI semua perusahaan</button>
+        <h3>3. Lengkapi data tersimpan</h3>
+        <p>Untuk data yang diambil sebelum langkah-langkah di atas ada. Tanpa crawl ulang: per perusahaan menjalankan <b>isi &amp; gambar → klasifikasi AI → analisis AI → dossier</b> dengan urutan yang sama seperti crawl. Maks. 300 berita per perusahaan sekali jalan; jalankan lagi bila masih ada sisa.</p>
+        <button class="btn pri" id="goBackfillOne">▶ Lengkapi perusahaan terpilih (pilihan di panel 1)</button>
+        <button class="btn" id="goBackfill">▶ Lengkapi semua perusahaan</button>
+        <h4 class="sub">Langkah terpisah</h4>
+        <button class="btn" id="goContent" title="Satu kali unduh per artikel: isi artikel (body HTML) dan gambar pratinjau. Ikut mencoba lagi yang gagal sebelumnya. AI tidak boleh berjalan bersamaan.">1 · Ambil isi &amp; gambar artikel</button>
+        <button class="btn" id="goReclass" title="AI membaca isi artikel dan menilai berita yang belum dinilai atau formatnya lama.">2 · Klasifikasi AI ulang</button>
+        <button class="btn" id="goAnalysis">3 · Buat ulang analisis AI semua perusahaan</button>
+        <button class="btn" id="goDossier" title="Dossier korporasi 4 bagian (pemilik &amp; pengendali, klien &amp; proyek, akta, fasilitas bank) dengan kutipan bukti dan nomor berita.">4 · Buat dossier korporasi semua perusahaan</button>
+        <button class="btn" id="goFin">Perbarui data keuangan semua emiten</button>
+        <button class="btn" id="goRescore" title="Tanpa AI. Menghitung ulang 'menyebut nama perusahaan' dari isi artikel dan mengosongkan tag risiko/dampak hasil kata kunci lama pada berita yang belum dinilai AI.">Hitung ulang keterkaitan nama (tanpa AI)</button>
       </div>
     </div>
 
@@ -97,12 +112,19 @@
             <button class="btn" id="resume" disabled style="width:auto;padding:5px 12px;margin:0">Lanjutkan</button>
             <button class="btn warn" id="cancel" disabled style="width:auto;padding:5px 12px;margin:0">Hentikan</button></span>
         </div>
-        <div id="jobChips" class="chips"></div>
+        <div class="stats">
+          <div class="stat"><small>Mulai</small><b id="stStart">–</b></div>
+          <div class="stat"><small id="stClockLbl">Durasi</small><b class="clock" id="stClock">--:--:--</b></div>
+          <div class="stat"><small>Checkpoint</small><b id="stCp">–</b></div>
+          <div class="stat"><small>Tahap</small><b id="stStage">–</b></div>
+        </div>
+        <div class="note" id="note" hidden></div>
         <div class="bar"><div id="barFill"></div></div>
         <div id="log"><span class="l"><span class="t">[--:--:--]</span> Task Runner siap menerima instruksi.</span></div>
         <div class="term-foot"><span>MySQL · schema media-search</span><button id="clear" type="button">Bersihkan log</button></div>
       </div>
       <div class="sum" id="sum" hidden><h4>Ringkasan hasil</h4><div id="sumBody"></div></div>
+      <div class="hist"><h4>Riwayat job</h4><div id="hist"><div class="hrow"><span></span><span class="sub">Belum ada job.</span></div></div></div>
     </div>
   </div>
 </div>
@@ -112,11 +134,28 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ACTIVE = ['running', 'waiting'];
 let jobId = null, cleared = 0, shown = 0, activeJobs = [];
-const TITLES = { portfolio: 'Crawl perusahaan', images: 'Ambil gambar', analysis: 'Analisis AI', reclassify: 'Klasifikasi ulang', rescore: 'Keterkaitan & tag risiko', financial: 'Data keuangan', dedupe: 'Buang duplikat', cron: 'Cron', simulate: 'Simulate' };
+let cmap = {}, view = null, clockSkew = 0, histJobs = [];      // cmap: id perusahaan -> ticker/nama; view: job yang sedang ditampilkan; clockSkew: jam server - jam browser
+const TITLES = { backfill: 'Lengkapi data tersimpan', portfolio: 'Crawl perusahaan', content: 'Ambil isi & gambar artikel', images: 'Ambil gambar (lama)', dedupe: 'Buang duplikat (lama)', analysis: 'Analisis AI', reclassify: 'Klasifikasi AI ulang', rescore: 'Keterkaitan nama & bersihkan kata kunci', financial: 'Data keuangan', dossier: 'Ekstrak dossier korporasi', cron: 'Cron' };
+const PER_COMPANY = ['backfill', 'portfolio', 'content', 'analysis', 'reclassify', 'rescore', 'financial', 'dossier'];
+const STAT = { running: 'berjalan', waiting: 'menunggu', done: 'selesai', error: 'error', cancelled: 'dihentikan', interrupted: 'terputus' };
+const pad = (n) => String(n).padStart(2, '0');
+const fmtDur = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); };
+const fmtWhen = (ms) => new Date(ms).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+// Durasi job: yang masih aktif dihitung sampai sekarang (jam server); yang sudah berhenti sampai waktu berhentinya (job terputus: detak terakhir).
+const durOf = (j) => ((ACTIVE.includes(j.status) ? Date.now() + clockSkew : (j.finishedAt || j.progress?.beatAt || Date.now() + clockSkew)) - (j.startedAt || j.createdAt));
+function jobLabel(j) {
+  const o = j.opts || {}, c = o.companies || [];
+  let t = TITLES[j.type] || j.type;
+  if (c.length === 1) t += ' · ' + (cmap[c[0]] || c[0]);
+  else if (c.length > 1) t += ' · ' + c.length + ' perusahaan';
+  else if (PER_COMPANY.includes(j.type)) t += ' · semua perusahaan';
+  if (j.type === 'portfolio' && o.classify === false) t += ' · tanpa AI';
+  return t;
+}
 
 // Jalur yang dipakai tiap tombol (harus sama dengan lanesOf di server). Tombol dinonaktifkan hanya bila jalurnya sedang dipakai job lain,
 // jadi crawl dan AI bisa berjalan bersamaan. "Full crawl" tetap bisa dipakai saat AI sibuk: server otomatis menjalankannya tanpa AI.
-const LANES = { goOne: ['crawl'], goAll: ['crawl'], goAllRaw: ['crawl'], goReclass: ['ai'], goImages: ['crawl'], goFin: ['crawl'], goAnalysis: ['ai'], goRescore: ['db'], goDedupe: ['db'] };
+const LANES = { goOne: ['crawl'], goAll: ['crawl'], goAllRaw: ['crawl'], goReclass: ['ai'], goContent: ['crawl', 'ai'], goBackfill: ['crawl', 'ai'], goBackfillOne: ['crawl', 'ai'], goFin: ['crawl'], goAnalysis: ['ai'], goRescore: ['db'] };
 function applyLanes() {
   const held = activeJobs.flatMap((j) => j.lanes || []);
   for (const [id, need] of Object.entries(LANES)) {
@@ -130,6 +169,7 @@ function applyLanes() {
 (async () => {
   document.querySelectorAll('.panel .btn').forEach((b) => (b.dataset.title = b.title || ''));
   const cfg = await (await fetch('/api/config')).json();
+  cmap = Object.fromEntries(cfg.companies.map((c) => [c.id, c.ticker || c.name]));
   $('#company').innerHTML = cfg.companies.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.ticker ? c.ticker + ' · ' : '') + esc(c.name) + '</option>').join('');
   const jobs = await (await fetch('/api/jobs')).json();
   const cur = jobs.find((j) => ACTIVE.includes(j.status)) || jobs[0];
@@ -153,11 +193,13 @@ $('#goOne').onclick = () => start('portfolio', { companies: [$('#company').value
 $('#goAll').onclick = () => start('portfolio', {});
 $('#goAllRaw').onclick = () => start('portfolio', { classify: false, analysis: false });
 $('#goReclass').onclick = () => start('reclassify', {});
-$('#goImages').onclick = () => start('images', {});
+$('#goContent').onclick = () => start('content', {});
 $('#goFin').onclick = () => start('financial', {});
 $('#goAnalysis').onclick = () => start('analysis', {});
+$('#goDossier').onclick = () => start('dossier', {});
+$('#goBackfill').onclick = () => start('backfill', {});
+$('#goBackfillOne').onclick = () => start('backfill', { companies: [$('#company').value] });
 $('#goRescore').onclick = () => start('rescore', {});
-$('#goDedupe').onclick = () => start('dedupe', {});
 $('#resume').onclick = async () => {
   if (!jobId) return;
   const r = await fetch('/api/jobs/' + jobId + '/resume', { method: 'POST' });
@@ -181,15 +223,16 @@ async function tick() {
     const list = await (await fetch('/api/jobs')).json();
     activeJobs = list.filter((j) => ACTIVE.includes(j.status));
     if (!jobId && list[0]) jobId = list[0].id;
-    // Chip: job aktif (titik hijau) + riwayat 8 job terakhir. Job terputus yang bisa dilanjutkan diberi tanda ↻.
-    const STAT = { done: 'selesai', error: 'error', cancelled: 'dihentikan', interrupted: 'terputus' };
-    const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    $('#jobChips').innerHTML = list.slice(0, 8).map((j) => {
-      const act = ACTIVE.includes(j.status);
-      return '<span class="chip ' + (j.id === jobId ? 'on ' : '') + (act ? '' : 'old ') + (j.resumable ? 'rs' : '') + '" data-id="' + esc(j.id) + '" title="' + esc((TITLES[j.type] || j.type) + ' · mulai ' + hhmm(j.createdAt) + (act ? '' : ' · ' + (STAT[j.status] || j.status)) + (j.resumable ? ' · bisa dilanjutkan' : '')) + '"><i></i>'
-        + (j.resumable ? '↻ ' : '') + esc(TITLES[j.type] || j.type) + (j.progress?.companyTotal && act ? ' ' + j.progress.companyIndex + '/' + j.progress.companyTotal : ' · ' + (STAT[j.status] || j.status)) + '</span>';
-    }).join('');
-    document.querySelectorAll('.chip').forEach((c) => (c.onclick = () => select(c.dataset.id)));
+    // Riwayat job: nama + target, waktu mulai, durasi, status, dan checkpoint untuk yang bisa dilanjutkan.
+    $('#hist').innerHTML = list.slice(0, 10).map((j) => {
+      const cp = j.checkpoint || { done: [], total: 0 };
+      const extra = j.resumable ? ' · <span class="rs">↻ checkpoint ' + cp.done.length + '/' + cp.total + ', bisa dilanjutkan</span>' : j.resumedFrom ? ' · lanjutan dari ' + esc(j.resumedFrom) : '';
+      return '<div class="hrow ' + esc(j.status) + (j.id === jobId ? ' on' : '') + '" data-id="' + esc(j.id) + '"><span class="dot"></span>'
+        + '<div style="min-width:0"><div class="nm">' + esc(jobLabel(j)) + '</div><div class="sub">mulai ' + esc(fmtWhen(j.startedAt || j.createdAt)) + extra + '</div></div>'
+        + '<div class="rt"><b data-dur="' + esc(j.id) + '">' + fmtDur(durOf(j)) + '</b>' + esc(STAT[j.status] || j.status) + '</div></div>';
+    }).join('') || '<div class="hrow"><span></span><span class="sub">Belum ada job.</span></div>';
+    document.querySelectorAll('.hrow[data-id]').forEach((c) => (c.onclick = () => select(c.dataset.id)));
+    histJobs = list;
     applyLanes();
     if (jobId) {
       const r = await fetch('/api/jobs/' + jobId);
@@ -198,6 +241,13 @@ async function tick() {
   } catch { /* coba lagi pada putaran berikutnya */ }
   busyTick = false;
 }
+
+// Jam durasi berdetak tiap detik (job yang sedang dilihat + baris riwayat yang aktif), memakai jam server.
+function tickClock() {
+  if (view) $('#stClock').textContent = fmtDur(durOf(view));
+  for (const j of histJobs) if (ACTIVE.includes(j.status)) { const el = document.querySelector('[data-dur="' + j.id + '"]'); if (el) el.textContent = fmtDur(durOf(j)); }
+}
+setInterval(tickClock, 1000);
 
 function addLine(text, cls) {
   const el = document.createElement('span');
@@ -215,7 +265,10 @@ function addLine(text, cls) {
 function render(j) {
   const active = ACTIVE.includes(j.status);
   $('#state').className = 'state ' + (active ? 'running' : j.status);
-  $('#stateText').textContent = ({ running: 'BERJALAN · ' + (TITLES[j.type] || j.type).toUpperCase(), waiting: 'MENUNGGU', done: 'SELESAI', error: 'ERROR', cancelled: 'DIHENTIKAN', interrupted: 'TERPUTUS (server mati)' })[j.status] || j.status;
+  if (j.serverNow) clockSkew = j.serverNow - Date.now();
+  view = j;
+  $('#stateText').textContent = ({ running: 'BERJALAN · ' + jobLabel(j).toUpperCase(), waiting: 'MENUNGGU · ' + jobLabel(j).toUpperCase(), done: 'SELESAI · ' + jobLabel(j).toUpperCase(), error: 'ERROR · ' + jobLabel(j).toUpperCase(), cancelled: 'DIHENTIKAN · ' + jobLabel(j).toUpperCase(), interrupted: 'TERPUTUS · ' + jobLabel(j).toUpperCase() })[j.status] || j.status;
+  if (j.status === 'error' && /^Sebagian selesai/.test(j.error || '')) $('#stateText').textContent = 'SEBAGIAN GAGAL · ' + jobLabel(j).toUpperCase();
   if (active && j.cancelRequested) {
     const st = (j.progress || {}).stage;
     const step = st === 'ai' ? 'batch AI yang sedang berjalan selesai' : st === 'crawl' ? 'work crawl saat ini selesai' : 'tahap saat ini selesai';
@@ -237,7 +290,27 @@ function render(j) {
   if (p.companyTotal) bits.push(p.companyIndex + '/' + p.companyTotal + ' ' + (p.company || '').replace(/^PT\s+/i, ''));
   if (p.stage && !['done', 'error', 'cancelled', 'company'].includes(p.stage)) bits.push(p.stage + (p.work ? ' ' + p.work : ''));
   if (active && j.cancelRequested) bits.push('alasan: batch yang sudah berjalan tidak diputus agar token tidak terbuang');
-  $('#stInfo').textContent = bits.join(' · ');
+  $('#stInfo').textContent = '';
+  // Panel statistik: mulai, durasi (live), checkpoint, tahap
+  const cp = j.checkpoint || { done: [], total: 0 };
+  $('#stStart').textContent = fmtWhen(j.startedAt || j.createdAt);
+  $('#stClockLbl').textContent = active ? 'Sudah berjalan' : j.status === 'interrupted' ? 'Berjalan sebelum terputus' : 'Total durasi';
+  $('#stCp').textContent = cp.total ? cp.done.length + '/' + cp.total + ' perusahaan selesai' : 'belum ada';
+  $('#stStage').textContent = bits.join(' · ') || (active ? 'memulai…' : STAT[j.status] || j.status);
+  $('#stStage').title = $('#stStage').textContent;
+  $('#stCp').title = 'Checkpoint dicatat per perusahaan: perusahaan yang sudah selesai dilewati saat job dilanjutkan.' + (cp.done.length ? ' Selesai: ' + cp.done.map((id) => cmap[id] || id).join(', ') : '');
+  tickClock();
+  // Catatan penjelas untuk job yang berhenti sebelum selesai
+  const note = $('#note');
+  const left = cp.total - cp.done.length;
+  if (['interrupted', 'cancelled', 'error'].includes(j.status)) {
+    const partial = j.status === 'error' && /^Sebagian selesai/.test(j.error || '');
+    const why = partial ? j.error + '.' : j.status === 'interrupted' ? 'Server berhenti atau restart saat job ini berjalan, jadi prosesnya ikut mati.' : j.status === 'cancelled' ? 'Job dihentikan manual.' : 'Job berhenti karena error' + (j.error ? ': ' + j.error : '.');
+    note.textContent = why + ' Data yang sudah tersimpan aman. ' + (j.resumable
+      ? 'Checkpoint: ' + cp.done.length + ' dari ' + cp.total + ' perusahaan sudah selesai. Klik Lanjutkan untuk meneruskan ' + left + ' perusahaan sisanya (perusahaan yang terputus di tengah diulang dari awal; berita yang sudah tersimpan tidak digandakan).'
+      : j.resumedFrom ? '' : 'Job ini tidak punya sisa yang bisa dilanjutkan' + (histJobs.some((x) => x.resumedFrom === j.id) ? ' (sudah pernah dilanjutkan).' : '.'));
+    note.hidden = false;
+  } else note.hidden = true;
   const rep = j.reports?.[j.reports.length - 1];
   if (rep?.perWork?.length) {
     const cols = Object.keys(rep.perWork[0]).filter((k) => k !== 'ms');

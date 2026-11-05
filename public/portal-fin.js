@@ -206,9 +206,9 @@ function renderAnalysis(a) {
   const k = KONDISI[a.kondisi] || KONDISI.netral;
   const refLinks = (txt) => esc(txt).replace(/\[(\d+)\]/g, (m, n) => {
     const r = (a.refs || []).find((x) => x.n === Number(n));
-    return r ? `<a href="${esc(safeUrl(r.url))}" ${r.id ? 'data-nid="' + r.id + '"' : ''} target="_blank" rel="noopener" title="${esc(r.title)}" style="color:var(--cyan);font-weight:700">[${n}]</a>` : m;
+    return r ? `<a class="ref" href="${esc(safeUrl(r.url))}" ${r.id ? 'data-nid="' + r.id + '"' : ''} target="_blank" rel="noopener" title="${esc((r.title || 'Berita') + '::' + [r.source, r.date ? String(r.date).slice(0, 10) : ''].filter(Boolean).join(' · ') + (r.id ? ' — klik untuk membuka beritanya.' : ''))}">${n}</a>` : m;
   });
-  const list = (items, cls, sign) => (items?.length ? items.map((x) => `<div class="ai-pt"><span class="tag ${cls}">${sign}</span><div><b>${esc(x.poin)}</b><div class="sm muted">Dasar: ${refLinks(x.dasar)}</div></div></div>`).join('') : '<div class="muted sm">Tidak ada.</div>');
+  const list = (items, cls, sign) => (items?.length ? items.map((x) => `<div class="ai-pt"><span class="tag ${cls}">${sign}</span><div><b>${esc(x.poin)}</b><div class="sm muted">Dasar: ${refLinks(x.dasar)}${x.basis === 'tanpa_rujukan_berita' ? ' <span class="tag t-amber" title="Poin ini tidak merujuk ke berita mana pun (mis. hanya angka keuangan). Tidak bisa ditelusuri otomatis: periksa sendiri.">belum tertelusuri ke berita</span>' : ''}</div></div></div>`).join('') : '<div class="muted sm">Tidak ada.</div>');
   box.innerHTML = `<div class="card ai">
     <div class="row" style="justify-content:space-between"><div class="eyebrow" style="margin:0">ANALISIS AI</div>
       <span class="row" style="gap:8px">${a.rating_risiko ? '<span class="tag t-gray">Rating AI: ' + esc(String(a.rating_risiko).replace('_', ' ')) + '</span>' : ''}<span class="tag ${k[0]}">${k[1]}</span><span class="tag t-gray">Keyakinan ${esc(a.keyakinan)}</span>
@@ -221,8 +221,8 @@ function renderAnalysis(a) {
     ${a.verifikasi?.length ? '<div class="ai-h" style="margin-top:14px">Yang perlu diverifikasi di FAP</div><ul style="padding-left:18px;color:#c5cbd3">' + a.verifikasi.map((v) => '<li>' + esc(v) + '</li>').join('') + '</ul>' : ''}
     ${a.outlook ? `<div class="ai-h" style="margin-top:14px">Outlook</div><p style="color:#c5cbd3">${esc(a.outlook)}</p>` : ''}
     ${a.pantau?.length ? `<div class="ai-h" style="margin-top:10px">Yang perlu dipantau</div><ul style="padding-left:18px;color:#c5cbd3">${a.pantau.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-    <details style="margin-top:14px"><summary class="sm muted" style="cursor:pointer">Berita yang dipakai sebagai dasar (${(a.refs || []).length})</summary>
-      ${(a.refs || []).map((r) => `<div class="kv"><span style="border:0"><b>[${r.n}]</b> <a href="${esc(safeUrl(r.url))}" ${r.id ? 'data-nid="' + r.id + '"' : ''} target="_blank" rel="noopener" style="color:var(--cyan)">${esc(r.title)}</a></span><b class="dim sm">${esc(r.source || '')}</b></div>`).join('')}</details>
+    <details style="margin-top:14px"><summary class="sm muted" style="cursor:pointer">Daftar berita yang dirujuk (${(a.refs || []).length})</summary><div class="sm dim" style="padding:6px 0 8px">Angka di “Dasar” (mis. <span class="ref">3</span>) adalah nomor berita pada daftar ini. Nomor dibuat per analisis: berita dengan bukti risiko terbesar lebih dulu, lalu berita terbaru. Nomornya berganti setiap analisis dibuat ulang. Klik angka atau judul untuk membuka beritanya.</div>
+      ${(a.refs || []).map((r) => `<div class="kv"><span style="border:0"><span class="ref">${r.n}</span> <a href="${esc(safeUrl(r.url))}" ${r.id ? 'data-nid="' + r.id + '"' : ''} target="_blank" rel="noopener" style="color:var(--cyan)">${esc(r.title)}</a></span><b class="dim sm">${esc(r.source || '')}</b></div>`).join('')}</details>
     <div class="sm dim" style="margin-top:12px">Dibuat ${esc(a.generatedAt ? new Date(a.generatedAt).toLocaleString('id-ID') : '-')} oleh ${esc(a.model || 'AI')} dari ${a.newsCount} berita${a.hasFinancial ? ' + data keuangan' : ''}. Bantuan analisis dari data yang tersedia, bukan keputusan kredit; verifikasi ke dokumen sumber sebelum dipakai.</div></div>`;
   $('#aiRegen').onclick = () => runAnalysis($('#aiRegen'));
 }

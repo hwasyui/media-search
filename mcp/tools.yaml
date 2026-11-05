@@ -1,0 +1,142 @@
+# Alat MCP untuk asisten Media Search (dijalankan oleh MCP Toolbox, Google, v1.15.0; biner terverifikasi hash dan tanda tangan, lihat src/mcp.js).
+# PRINSIP KEAMANAN
+#  * Model TIDAK menulis SQL. Setiap alat = satu SQL tetap dengan parameter (prepared statement "?"); nilai dari model hanya jadi NILAI, tidak pernah jadi bagian perintah.
+#  * Batas baris ada di SQL (LIMIT) dan isi artikel penuh tidak pernah dikirim di daftar.
+#  * Batas hak akses sebenarnya ada di MySQL: user mcp_ro hanya boleh SELECT pada objek di db/mcp_readonly_user.sql.
+#  * Kredensial dibaca dari environment (MCP_DB_*); tidak ada rahasia di file ini.
+# Waktu semua UTC. Untuk "semua perusahaan" pada parameter company, isi '%'.
+
+kind: source
+name: media-search
+type: mysql
+host: ${MCP_DB_HOST}
+port: ${MCP_DB_PORT}
+database: media-search
+user: ${MCP_DB_USER}
+password: ${MCP_DB_PASSWORD}
+queryTimeout: 15s
+---
+kind: tool
+name: daftar_perusahaan
+type: mysql-sql
+source: media-search
+description: Daftar semua perusahaan yang dipantau (id, nama, jenis public=emiten/private=tertutup, ticker, sektor, terakhir di-crawl). Mulai dari sini untuk mengetahui id perusahaan yang dipakai alat lain.
+statement: SELECT id, name, type, ticker, sector, aliases, last_crawl_at FROM companies ORDER BY name LIMIT 100
+---
+kind: tool
+name: ringkasan_portofolio
+type: mysql-sql
+source: media-search
+description: Satu baris per perusahaan - rating risiko terbaru (aturan), skor 0-100, judul analisis AI terbaru, jumlah berita 30 hari dan berita berisiko 30 hari. Untuk pertanyaan perbandingan antar perusahaan.
+statement: SELECT company_id, name, type, ticker, sector, risk_rating, risk_score, risk_computed_at, ai_headline, ai_risk_rating, ai_condition, news_30d, risk_news_30d, last_crawl_at FROM v_company_overview ORDER BY risk_score DESC LIMIT 100
+---
+kind: tool
+name: pemangku_kepentingan
+type: mysql-sql
+source: media-search
+description: Pengurus, pemegang saham, dan pihak terkait satu perusahaan (diisi manual oleh analis, belum tentu terverifikasi akta).
+statement: SELECT name, role FROM stakeholders WHERE company_id = ? ORDER BY name LIMIT 50
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan (lihat daftar_perusahaan), mis. bca
+---
+kind: tool
+name: profil_risiko
+type: mysql-sql
+source: media-search
+description: Profil risiko terbaru satu perusahaan - rating, skor, skor per kategori, faktor beserta bukti berita, checklist verifikasi, catatan, dan cakupan (berapa berita sudah dinilai AI). Rating dihitung rumus tetap dari penilaian AI atas isi berita.
+statement: SELECT company_id, computed_at, rating, score, categories, coverage, caveats, checklist, factors FROM risk_profiles WHERE company_id = ? ORDER BY id DESC LIMIT 1
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan, mis. bca
+---
+kind: tool
+name: analisis_ai_terbaru
+type: mysql-sql
+source: media-search
+description: Analisis AI terbaru satu perusahaan (headline, ringkasan, rating, temuan deed, faktor risiko dan positif, hal yang perlu diverifikasi, rujukan berita bernomor).
+statement: SELECT company_id, generated_at, model, news_count, headline, rating_risiko, kondisi, content FROM company_analyses WHERE company_id = ? ORDER BY id DESC LIMIT 1
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan, mis. bca
+---
+kind: tool
+name: dossier_terbaru
+type: mysql-sql
+source: media-search
+description: Dossier korporasi terbaru satu perusahaan - 4 bagian (pemilik manfaat & pengendali, klien & proyek, akta & perubahan korporasi, fasilitas bank), tiap poin dengan kutipan asli, nomor berita, dan status verifikasi.
+statement: SELECT company_id, generated_at, content FROM company_dossiers WHERE company_id = ? LIMIT 1
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan, mis. bca
+---
+kind: tool
+name: keuangan_terbaru
+type: mysql-sql
+source: media-search
+description: Data keuangan terbaru satu emiten - harga, valuasi, dan dua kuartal laporan keuangan terakhir. Kosong untuk perusahaan tertutup.
+statement: SELECT company_id, ticker, fetched_at, price, change_5d_pct, change_1m_pct, JSON_REMOVE(JSON_EXTRACT(data, '$.price'), '$.series') AS harga, JSON_EXTRACT(data, '$.valuation') AS valuasi, JSON_EXTRACT(data, '$.fundamentals.quarterly[0]') AS kuartal_terbaru, JSON_EXTRACT(data, '$.fundamentals.quarterly[1]') AS kuartal_sebelumnya FROM financial_snapshots WHERE company_id = ? ORDER BY id DESC LIMIT 1
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan, mis. bca
+---
+kind: tool
+name: cari_berita
+type: mysql-sql
+source: media-search
+description: Cari berita yang sudah disaring (cleaned) - maksimal 30, terbaru dulu. impact = baik/buruk/netral (penilaian AI atas isi berita; NULL berarti belum dinilai AI), risk_level 0-5, company_role = peran perusahaan dalam berita. Gunakan detail_berita untuk isi lengkap.
+statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.impact, n.risk_level, n.company_role, n.category, n.sentiment, n.ai_summary, n.article_url FROM news_cleaned n WHERE n.company_id LIKE ? AND CONCAT_WS(' ', n.title, n.ai_summary) LIKE CONCAT('%', ?, '%') AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.sort_at DESC LIMIT 30
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan (mis. bca) atau % untuk semua perusahaan
+  - name: kata
+    type: string
+    description: kata yang dicari di judul atau ringkasan; string kosong untuk semua berita
+  - name: hari
+    type: integer
+    description: rentang hari ke belakang, mis. 30 (maksimal wajar 365)
+---
+kind: tool
+name: berita_berisiko
+type: mysql-sql
+source: media-search
+description: Berita yang dinilai AI berdampak buruk atau bertingkat risiko 3 ke atas, tingkat tertinggi dulu - maksimal 30. Termasuk kategori risiko dan kutipan buktinya (risk_tags).
+statement: SELECT n.id, n.company_id, n.title, n.source_name, n.sort_at AS terbit, n.risk_level, n.risk_tags, n.impact, n.impact_reason, n.company_role, n.ai_summary, n.article_url FROM news_cleaned n WHERE n.company_id LIKE ? AND (n.impact = 'buruk' OR n.risk_level >= 3) AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY ORDER BY n.risk_level DESC, n.sort_at DESC LIMIT 30
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan atau % untuk semua perusahaan
+  - name: hari
+    type: integer
+    description: rentang hari ke belakang, mis. 30
+---
+kind: tool
+name: detail_berita
+type: mysql-sql
+source: media-search
+description: Detail satu berita menurut id (termasuk yang belum lolos saringan) - ringkasan dan penilaian AI, temuan risiko dengan bukti, alamat artikel asli, dan isi artikel (dipotong 6000 karakter, berupa HTML paragraf). ai_status 'ok' dengan company_role terisi = sudah dinilai AI.
+statement: SELECT n.id, n.company_id, c.name AS perusahaan, n.title, n.source_name, n.sort_at AS terbit, n.article_url, n.platform, n.credibility_tier, n.ai_status, n.company_role, n.relevant, n.impact, n.impact_reason, n.category, n.sentiment, n.confidence, n.ai_summary, n.reason, n.risk_level, n.risk_tags, n.link_error, LEFT(n.content_html, 6000) AS isi_html FROM news_items n JOIN companies c ON c.id = n.company_id WHERE n.id = ? LIMIT 1
+parameters:
+  - name: id
+    type: integer
+    description: id berita
+---
+kind: tool
+name: statistik_berita
+type: mysql-sql
+source: media-search
+description: Hitungan berita (cleaned) per perusahaan dalam N hari - total, berdampak buruk, berdampak baik, risiko tingkat 3+, rumor, dan berapa yang sudah dinilai AI. Untuk pertanyaan jumlah tanpa perlu membaca berita satu per satu.
+statement: SELECT n.company_id, COUNT(*) AS total, SUM(n.impact = 'buruk') AS dampak_buruk, SUM(n.impact = 'baik') AS dampak_baik, SUM(n.risk_level >= 3) AS risiko_3_plus, SUM(n.category = 'rumor') AS rumor, SUM(n.ai_status = 'ok' AND n.company_role IS NOT NULL) AS sudah_dinilai_ai FROM news_cleaned n WHERE n.company_id LIKE ? AND n.sort_at >= UTC_TIMESTAMP() - INTERVAL ? DAY GROUP BY n.company_id ORDER BY total DESC LIMIT 100
+parameters:
+  - name: company
+    type: string
+    description: id perusahaan atau % untuk semua perusahaan
+  - name: hari
+    type: integer
+    description: rentang hari ke belakang, mis. 30

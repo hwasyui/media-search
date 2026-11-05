@@ -1,4 +1,4 @@
-/* Tab "Risiko FAP" + form tambah perusahaan klien. Memakai helper global portal.html: $, esc, nf, api, CS, safeUrl, ago, toast, S, loadPortfolio. */
+/* Tab "Risiko AI" + form tambah perusahaan klien. Memakai helper global portal.html: $, esc, nf, api, CS, safeUrl, ago, toast, S, loadPortfolio. */
 'use strict';
 
 const RATING_UI = {
@@ -30,7 +30,7 @@ async function tabRisiko() {
   const catLabel = (k) => (p.categories[k] ? p.categories[k].label : k);
 
   const meta = (f) => [
-    f.severity ? '<span class="tag ' + (f.severity >= 4 ? 't-red' : f.severity >= 3 ? 't-amber' : 't-gray') + '" title="' + esc((LEVEL_TIP[f.severity] || '') + (f.hit ? ' Kata pemicu: “' + f.hit + '”. Tag dihitung dari kata kunci, jadi periksa isi beritanya: perusahaan bisa saja pelaku, bukan pihak yang terkena.' : '')) + '">tingkat ' + f.severity + (f.hit ? ' · ' + esc(f.hit) : '') + '</span>' : '',
+    f.severity ? '<span class="tag ' + (f.severity >= 4 ? 't-red' : f.severity >= 3 ? 't-amber' : 't-gray') + '" title="' + esc((LEVEL_TIP[f.severity] || '') + ' Dinilai AI dari isi artikel; tetap verifikasi ke sumbernya.') + '">tingkat ' + f.severity + '/5</span>' + (f.hit ? '<span class="sm dim" style="flex-basis:100%">“' + esc(f.hit) + '”</span>' : '') : '',
     f.rumor ? '<span class="tag t-amber" title="Dinilai AI sebagai rumor/belum terverifikasi">rumor</span>' : '',
     f.tier === 'official' ? '<span class="tag t-green">sumber resmi</span>' : '',
     f.finance ? '' : (f.direct ? '' : '<span class="tag t-violet" title="Judul tidak menyebut nama perusahaan; bisa menyangkut pihak lain atau hubungan tidak langsung. Periksa sebelum dipakai.">periksa keterkaitan</span>'),
@@ -45,7 +45,7 @@ async function tabRisiko() {
   $('#cbody').innerHTML = `
     <div class="rk-hero">
       <div class="rk-rating" style="--c:${color}">
-        <div class="sm muted" style="letter-spacing:.06em">RATING RISIKO PEMBIAYAAN · INDIKATIF</div>
+        <div class="sm muted" style="letter-spacing:.06em">RATING RISIKO · HASIL PENILAIAN AI ATAS BERITA · INDIKATIF</div>
         <div class="rv" style="color:${color}">${esc(label)}</div>
         ${noData ? '<div class="sm muted">Belum ada berita atau data keuangan tersimpan. Ini bukan berarti aman.</div>' : `
         <div class="meter" title="Skor ${p.score} dari 100. Batas: <20 rendah, <45 sedang, <70 tinggi, selebihnya sangat tinggi">
@@ -65,7 +65,12 @@ async function tabRisiko() {
       </div>
     </div>
     <div class="caveats">${p.caveats.map((t) => '<div>⚠ ' + esc(t) + '</div>').join('')}</div>
-    <details class="card tbl" style="margin-top:10px"><summary>Apa arti “tingkat 1–5” dan kata di sebelahnya?</summary><div style="padding:0 16px 14px;color:var(--muted);line-height:1.7">Setiap berita diberi tag risiko berdasarkan <b>kata pemicu</b> (kata yang cocok di judul/cuplikan). <b>Tingkat</b> adalah bobot keparahan kata itu pada skala 1–5; kata berbeda bisa punya tingkat sama (mis. “sanksi” dan “diblokir” sama-sama tingkat 4). Kata sesudah titik adalah kata yang cocok. ${Object.values(LEVEL_TIP).map((t) => '<div>• ' + esc(t) + '</div>').join('')}<div style="margin-top:6px">Tag dihitung dengan aturan kata kunci, jadi tidak tahu <i>siapa</i> yang terkena. Berita yang menyebut perusahaan sebagai pihak yang menjatuhkan sanksi, atau sanksi terhadap pihak lain, bisa lolos; karena itu tiap temuan perlu dicek ke beritanya (klik untuk detail).</div></div></details>
+    <details class="card tbl" style="margin-top:10px"><summary>Bagaimana rating ini dibuat dan seberapa bisa dipercaya?</summary><div style="padding:0 16px 14px;color:var(--muted);line-height:1.7">
+      <div>1. <b>AI membaca isi tiap berita</b> dan menilai: apakah perusahaan ini subjek beritanya, dampaknya, dan temuan risiko (kategori, tingkat 1–5, beserta <b>kutipan bukti</b> dari artikel). Temuan yang kutipannya tidak ditemukan di teks artikel dibuang otomatis.</div>
+      <div>2. <b>Skor dan rating dihitung dengan rumus tetap</b> dari temuan itu (tingkat × kredibilitas sumber × kebaruan × peran perusahaan). Rumusnya bisa dilihat dan hasilnya sama setiap kali dihitung.</div>
+      <div>3. Berita yang <b>belum dinilai AI tidak dihitung</b> (dilaporkan di catatan di atas), jadi rating tidak ditebak dari kata kunci.</div>
+      <div style="margin-top:6px"><b>Batasannya:</b> penilaian AI belum diaudit manusia dan bisa keliru, jadi rating ini indikator awal untuk menentukan apa yang perlu diverifikasi, bukan dasar keputusan kredit. Klik tiap temuan untuk membaca beritanya.</div>
+      <div style="margin-top:6px">Arti tingkat:</div>${Object.values(LEVEL_TIP).map((t) => '<div>• ' + esc(t) + '</div>').join('')}</div></details>
 
     ${keyFindings.length ? `<h4>Temuan utama <span class="muted sm">· bukti dengan bobot terbesar</span></h4>
     <div class="kf-grid">${keyFindings.map((f) => `<div class="kf" ${f.id ? 'data-nid="' + f.id + '"' : ''}>
@@ -140,13 +145,16 @@ async function submitAddCompany(ev) {
 const lazyAsked = new Set();
 let lazyTimer;
 function scheduleLazy() { clearTimeout(lazyTimer); lazyTimer = setTimeout(runLazyImages, 350); }
-function insertLazyImage(node, url) {
-  const src = esc(safeUrl(url));
+function insertLazyImage(node, id) {
+  const src = '/img/' + id;                                          // gambar disajikan dari cache lokal server
   const img = '<img class="cover" src="' + src + '" alt="" loading="lazy" referrerpolicy="no-referrer"';
   if (node.classList.contains('side-row')) {
     node.insertAdjacentHTML('afterbegin', '<img class="sth" src="' + src + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">');
   } else {
-    node.insertAdjacentHTML('afterbegin', '<div class="thumb' + (node.classList.contains('lead-main') ? ' big' : '') + '">' + img + ' onerror="this.closest(\'.thumb\').remove()"></div>');
+    // kartu selalu punya .thumb berisi placeholder logo penerbit; gambar ditumpuk di atasnya (bila gagal dimuat, placeholder tetap terlihat)
+    const t = node.querySelector('.thumb');
+    if (t) t.insertAdjacentHTML('beforeend', img + ' onerror="this.remove()">');
+    else node.insertAdjacentHTML('afterbegin', '<div class="thumb' + (node.classList.contains('lead-main') ? ' big' : '') + '">' + img + ' onerror="this.remove()"></div>');
   }
 }
 async function runLazyImages() {
@@ -159,7 +167,7 @@ async function runLazyImages() {
     for (const id of fresh) {
       for (const n of document.querySelectorAll('[data-lazyimg="' + id + '"]')) {
         n.removeAttribute('data-lazyimg');
-        if (r.images?.[id]) insertLazyImage(n, r.images[id]);
+        if (r.images?.[id]) insertLazyImage(n, id);
       }
     }
   } catch { /* tanpa gambar: kartu tetap normal */ }

@@ -8,12 +8,19 @@ import { cleanItems } from './src/clean.js';
 import { enrichItemsWithContent, extractContentFromUrl } from './src/extractor.js';
 import { classifyItems, geminiKeys, groqKeys, MAX_ITEMS as AI_MAX_ITEMS } from './src/classify.js';
 import { getFinancials, searchIdx } from './src/financial.js';
-import { cancelJob, getJob, listJobs, publicJob, recoverJobs, resumeJob, startJob } from './src/jobs.js';
+import { cancelJob, flushJobs, getJob, listJobs, publicJob, recoverJobs, resumeJob, startJob } from './src/jobs.js';
 import { getCompany, latestAnalysis, latestFinancial, latestRiskProfiles, listCompanies, listReports, readReport } from './src/store.js';
 import { saveAnalysis, saveCompany, saveFinancial, saveNews, saveRiskProfile } from './src/save.js';
 import { generateAnalysis } from './src/analysis.js';
+import { generateCompanyDossier, getCompanyDossier } from './src/dossier.js';
 import { chat as assistantChat } from './src/assistant.js';
+import { closeMcp, mcpTools } from './src/mcp.js';
 import { enrichByIds } from './src/images.js';
+import { db } from './src/db.js';
+import { realUrl } from './src/content.js';
+import { isGoogleArticle, resolveGoogleUrl } from './src/gnews.js';
+import { isGoogleNewsUrl, resolveArticleUrl } from './src/resolver.js';
+import { getCover } from './src/covers.js';
 import { getRiskProfile } from './src/riskprofile.js';
 import { companyNewsStats, getNewsDetail, listNews, newsCounts, newsFacets, newsTotal, platformCounts } from './src/news.js';
 import { buildNarrative } from './src/narrative.js';
@@ -238,7 +245,7 @@ app.post('/api/jobs/:id/resume', (req, res) => {
 app.get('/api/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'job tidak ditemukan' });
-  res.json(publicJob(job));
+  res.json({ ...publicJob(job), serverNow: Date.now() });      // serverNow: browser menghitung durasi dengan jam server
 });
 app.post('/api/jobs/:id/cancel', (req, res) => {
   try { res.json(publicJob(cancelJob(req.params.id))); } catch (e) { jobError(res, e); }
@@ -281,12 +288,14 @@ app.post('/api/assistant', async (req, res) => {
     const hits = (chatHits.get(ip) || []).filter((t) => now - t < 10 * 60 * 1000);
     if (hits.length >= 20) return res.status(429).json({ error: 'Terlalu banyak pertanyaan. Coba lagi beberapa menit lagi.' });
     hits.push(now); chatHits.set(ip, hits);
+    const parseCx = (x) => (x && x.type === 'company' && /^[\w.-]{1,60}$/.test(String(x.companyId || '')) ? { type: 'company', companyId: String(x.companyId) } : x && x.type === 'news' && Number.isInteger(Number(x.newsId)) ? { type: 'news', newsId: Number(x.newsId) } : x && x.type === 'home' ? { type: 'home' } : null);
     const raw = Array.isArray(req.body?.messages) ? req.body.messages.slice(-8) : [];
-    const messages = raw.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string' && m.content.trim()).map((m) => ({ role: m.role, content: m.content.slice(0, 1200) }));
+    const messages = raw.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string' && m.content.trim()).map((m) => ({ role: m.role, content: m.content.slice(0, 1200), cx: parseCx(m.cx) }));
     if (!messages.length || messages.at(-1).role !== 'user') return res.status(400).json({ error: 'pertanyaan kosong' });
     const c = req.body?.context || {};
     const context = c.type === 'company' ? { type: 'company', companyId: String(c.companyId || '') } : c.type === 'news' ? { type: 'news', newsId: Number(c.newsId) } : { type: 'home' };
-    res.json(await assistantChat(messages, context));
+    const parse = (x) => (x && x.type === 'company' ? { type: 'company', companyId: String(x.companyId || '') } : x && x.type === 'news' && Number.isInteger(Number(x.newsId)) ? { type: 'news', newsId: Number(x.newsId) } : null);
+    res.json(await assistantChat(messages, context, parse(req.body?.prev)));      // prev: konteks jawaban terakhir bila halamannya sudah berganti
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
@@ -300,6 +309,34 @@ app.get('/api/news/:id(\\d+)', async (req, res) => {
 });
 
 // Gambar artikel secara lazy: browser meminta untuk berita yang sedang tampil (maks. 12 id per permintaan).
+// Buka artikel asli satu berita. Tautan Google News diselesaikan langsung ke alamat penerbit asli.
+app.get('/go/:id(\\d+)', async (req, res) => {
+  try {
+    const [[r]] = await db().query('SELECT id, url, title, snippet, source_domain, source_name, article_url FROM news_items WHERE id = ?', [Number(req.params.id)]);
+    if (!r) return res.status(404).send('berita tidak ditemukan');
+    if (r.article_url && !isGoogleNewsUrl(r.article_url)) return res.redirect(302, r.article_url);
+    if (!isGoogleNewsUrl(r.url)) return res.redirect(302, r.url);
+
+    const art = await resolveArticleUrl(r);
+    if (art && !isGoogleNewsUrl(art)) {
+      await db().query('UPDATE news_items SET article_url = ?, url = ?, link_error = NULL WHERE id = ?', [art, art, r.id]).catch(() => {});
+      return res.redirect(302, art);
+    }
+    return res.redirect(302, art || `https://www.google.com/search?q=${encodeURIComponent(r.title || '')}`);
+  } catch { res.status(500).send('gagal membuka artikel'); }
+});
+
+// Gambar sampul dari cache lokal (data/covers); diunduh sekali dari situs penerbit bila belum ada. 404 bila tidak bisa: kartu memakai logo penerbit.
+app.get('/img/:id(\\d+)', async (req, res) => {
+  try {
+    const [[r]] = await db().query('SELECT image_url FROM news_items WHERE id = ?', [Number(req.params.id)]);
+    const c = r?.image_url ? await getCover(r.image_url) : null;
+    if (!c) return res.status(404).end();
+    res.set('Cache-Control', 'public, max-age=604800');
+    res.type(c.type).sendFile(c.file);
+  } catch { res.status(404).end(); }
+});
+
 app.post('/api/news/images', async (req, res) => {
   try {
     const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 12);
@@ -401,6 +438,31 @@ app.post('/api/company/:id/ai-analysis', async (req, res) => {
   }
 });
 
+// Dossier Korporasi: baca yang tersimpan / ekstrak baru dari berita, keterbukaan, dan profil
+app.get('/api/company/:id/dossier', async (req, res) => {
+  try {
+    const dossier = await getCompanyDossier(req.params.id);
+    res.json({ dossier });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+const extractingDossier = new Set();
+app.post('/api/company/:id/dossier', async (req, res) => {
+  const company = await getCompany(req.params.id).catch(() => null);
+  if (!company) return res.status(404).json({ error: 'perusahaan tidak ditemukan' });
+  if (extractingDossier.has(company.id)) return res.status(409).json({ error: 'ekstraksi dossier sedang berlangsung' });
+  extractingDossier.add(company.id);
+  try {
+    const dossier = await generateCompanyDossier(company.id);
+    res.json({ dossier });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    extractingDossier.delete(company.id);
+  }
+});
+
 // Ambil berita terbaru satu perusahaan: fetch -> clean -> klasifikasi -> simpan ke DB. Satu proses per perusahaan.
 // "Perbarui berita" (satu perusahaan) memakai pipeline Task Runner yang sama: simpan dulu, buang duplikat, lewati berita yang sudah
 // terklasifikasi lengkap, saring konten konsumen, dan hormati jalur (crawl/AI) supaya tidak bentrok atau membuang token.
@@ -416,3 +478,18 @@ app.post('/api/companies/:id/refresh', async (req, res) => {
 await recoverJobs().catch((e) => console.error('[jobs] recover gagal:', e.message));
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Media Search jalan di http://localhost:${port}`));
+
+// Asisten AI memakai MCP: sambungkan sekarang (di latar belakang) supaya kesalahan konfigurasi langsung terlihat dan pertanyaan pertama tidak menunggu.
+mcpTools().then((t) => console.log(`[mcp] tersambung: ${t.length} alat (${t.map((x) => x.name).join(', ')})`)).catch((e) => console.warn('[mcp] BELUM tersambung, asisten AI belum bisa menjawab:', e.message));
+
+// Dimatikan baik-baik (Ctrl+C / restart): simpan checkpoint terakhir dan tandai job aktif "terputus" sebelum keluar.
+let stopping = false;
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) {
+  process.on(sig, async () => {
+    if (stopping) return;
+    stopping = true;
+    try { await closeMcp(); } catch { /* abaikan */ }
+    try { const n = await flushJobs(); if (n) console.log(`[jobs] ${n} job aktif ditandai terputus (checkpoint tersimpan)`); } catch (e) { console.error('[jobs] flush gagal:', e.message); }
+    process.exit(0);
+  });
+}

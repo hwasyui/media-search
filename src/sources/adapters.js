@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveArticleUrl } from '../resolver.js';
 
 export const LISTENER_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../listener');
 export const PYTHON = process.env.PYTHON || 'python';
@@ -107,14 +108,28 @@ async function get(url, init = {}) {
 }
 
 // ---------- Google News (RSS resmi). when:7d = 7 hari terakhir ----------
+// Alamat artikel diselesaikan langsung ke situs asli penerbit saat crawl agar tidak menyimpan tautan Google News
 async function googleNews(q) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:7d`)}&hl=id&gl=ID&ceid=ID:id`;
-  const items = parseRss(await (await get(url)).text());
-  return items.slice(0, MAX_PER_QUERY).map((i) => {
-    // Judul Google News berbentuk "Judul - Nama Media"
+  const rawItems = parseRss(await (await get(url)).text()).slice(0, MAX_PER_QUERY);
+  const items = await Promise.all(rawItems.map(async (i) => {
     const title = i.source && i.title.endsWith(` - ${i.source}`) ? i.title.slice(0, -(i.source.length + 3)) : i.title;
-    return { title, url: i.link, snippet: '', date: normalizeDate(i.pubDate), sourceName: i.source || 'Google News', sourceUrl: i.sourceUrl };
-  });
+    let domain = '';
+    try { if (i.sourceUrl) domain = new URL(i.sourceUrl).hostname.replace(/^www\./, ''); } catch {}
+    const real = await resolveArticleUrl({ url: i.link, title, source_domain: domain, source_name: i.source }).catch(() => null);
+    const targetUrl = real || i.link;
+    return {
+      title,
+      url: targetUrl,
+      originalUrl: i.link,
+      articleUrl: real || undefined,
+      snippet: '',
+      date: normalizeDate(i.pubDate),
+      sourceName: i.source || 'Google News',
+      sourceUrl: targetUrl,
+    };
+  }));
+  return items;
 }
 
 function cleanBingQuery(q) {

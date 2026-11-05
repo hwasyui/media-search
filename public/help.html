@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Media Search · HELP</title>
+<link rel="stylesheet" href="/shell.css">
+<script src="/shell.js" defer></script>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#0f1318; --panel2:#141920; --line:#232932; --line2:#2e3641;
+    --text:#e9ecef; --muted:#8d95a0; --dim:#5f6772;
+    --green:#2fbf71; --red:#ef5b5b; --amber:#fbbf24; --cyan:#4c8dff; --violet:#a78bfa;
+    --radius:2px; --font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  html{color-scheme:dark;scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font:14px/1.6 var(--font);-webkit-font-smoothing:antialiased}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
+  .page{padding:24px 28px 80px;max-width:1280px;display:grid;grid-template-columns:minmax(0,900px) 210px;gap:0 56px;align-items:start}
+  article{min-width:0}
+  .toc{position:sticky;top:24px;font-size:13px;border-left:1px solid var(--line);padding-left:16px;margin-top:38px}
+  .toc b{display:block;font-size:11px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;margin-bottom:8px}
+  .toc a{display:block;padding:5px 0;color:var(--muted);border-left:0} .toc a:hover{color:var(--text);text-decoration:none}
+  .eyebrow{font:700 11px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;color:var(--cyan);display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .eyebrow:before{content:"";width:8px;height:8px;background:var(--cyan)}
+  h1{font-size:26px;letter-spacing:-.02em;line-height:1.2}
+  .intro{color:var(--muted);margin-top:8px;max-width:720px}
+  .index{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0 6px;padding:5px;background:var(--panel);border:1px solid var(--line)}
+  .index a{padding:7px 12px;color:var(--muted);font-weight:600;font-size:13px} .index a:hover{color:var(--text);background:var(--panel2);text-decoration:none}
+  h2{font-size:18px;margin:40px 0 4px;padding-top:4px;scroll-margin-top:12px;letter-spacing:-.01em}
+  h3{font-size:14px;margin:22px 0 8px;color:var(--text)}
+  p{margin:8px 0;color:#c5cbd3} .sub{color:var(--muted);margin:0 0 14px}
+  ul,ol{margin:8px 0 8px 20px;color:#c5cbd3} li{margin:3px 0}
+  b{color:var(--text)}
+  code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:var(--panel2);border:1px solid var(--line);padding:0 5px;color:#d6dbe3}
+  .card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;margin:12px 0}
+  .card.note{border-left:3px solid var(--amber)} .card.stop{border-left:3px solid var(--red)} .card > :first-child{margin-top:0} .card > :last-child{margin-bottom:0}
+  .tag{display:inline-block;padding:1px 8px;font-size:11.5px;font-weight:700;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+  .t-ai{background:rgba(167,139,250,.14);color:var(--violet);border-color:rgba(167,139,250,.4)}
+  .t-rule{background:rgba(47,191,113,.12);color:var(--green);border-color:rgba(47,191,113,.35)}
+  .t-ext{background:rgba(251,191,36,.12);color:var(--amber);border-color:rgba(251,191,36,.35)}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top} th{color:var(--muted);font-weight:600;font-size:12px;background:var(--panel2)}
+  .tw{overflow-x:auto;border:1px solid var(--line);background:var(--panel);margin:10px 0}
+  .tw td:first-child{white-space:nowrap}
+  /* diagram alur: kotak datar yang dihubungkan panah */
+  .flow{display:flex;flex-wrap:wrap;gap:8px 0;align-items:stretch;margin:14px 0}
+  .fb{flex:1 1 150px;min-width:140px;background:var(--panel);border:1px solid var(--line2);padding:11px 12px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .fb b{display:block;font-size:13px;margin-bottom:4px} .fb .tag{margin-top:7px;display:block;width:max-content}
+  .fb.ai{border-top:3px solid var(--violet)} .fb.rule{border-top:3px solid var(--green)} .fb.ext{border-top:3px solid var(--amber)} .fb.db{border-top:3px solid var(--cyan)}
+  .ar{flex:0 0 26px;display:grid;place-items:center;color:var(--dim);font-size:16px}
+  .key{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:6px 0}
+  .formula{background:var(--panel2);border:1px solid var(--line2);padding:12px 14px;font:13px/1.9 ui-monospace,Menlo,Consolas,monospace;color:#dfe5ee;overflow-x:auto;margin:10px 0}
+  .scale{display:flex;height:30px;margin:12px 0 4px;font-size:12px;font-weight:700} .scale span{display:grid;place-items:center;color:#0b0d10}
+  .sc-l{display:flex;justify-content:space-between;color:var(--dim);font-size:11.5px}
+  .gl{display:grid;grid-template-columns:minmax(150px,210px) 1fr;gap:0;border:1px solid var(--line);background:var(--panel);margin:10px 0}
+  .gl dt,.gl dd{padding:9px 12px;border-bottom:1px solid var(--line);margin:0} .gl dt{font-weight:700;color:var(--text);background:var(--panel2)} .gl dd{color:#c5cbd3}
+  .gl dt:last-of-type,.gl dd:last-of-type{border-bottom:0}
+  details{border:1px solid var(--line);background:var(--panel);margin:8px 0} summary{cursor:pointer;padding:11px 14px;font-weight:600} details>div{padding:0 14px 12px}
+  @media (max-width:1100px){.page{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+  @media (min-width:1101px){.index{display:none}}
+  @media (max-width:700px){.page{padding:16px 14px 70px}.ar{display:none}.gl{grid-template-columns:1fr}.gl dt{border-bottom:0;padding-bottom:2px}}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%234c8dff%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial%27%3EM%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="page"><article>
+  <div class="eyebrow">HELP</div>
+  <h1>Cara kerja Media Search</h1>
+  <p class="intro">Aplikasi ini mengumpulkan berita publik tentang perusahaan debitur, meminta AI membaca isinya, lalu menghitung rating risiko. Halaman ini menjelaskan dari mana datanya, bagian mana yang dikerjakan AI, dan bagaimana angkanya dihitung.</p>
+
+  <div class="card note"><b>Bukan keputusan kredit.</b> Hasilnya hanya petunjuk awal tentang apa yang perlu dicek. Semua temuan harus dicocokkan dengan dokumen asli (akta, AHU, laporan keuangan audit, SLIK OJK). Aplikasi ini masih prototype.</div>
+
+  <nav class="index"><a href="#alur">Alur</a><a href="#sumber">Sumber data</a><a href="#ai">Peran AI</a><a href="#rating">Perhitungan rating</a><a href="#batasan">Batasan</a><a href="#istilah">Istilah</a><a href="#faq">Tanya jawab</a></nav>
+
+  <h2 id="alur">Alur</h2>
+  <p class="sub">Dari berita di internet sampai rating di layar.</p>
+  <div class="key"><span><span class="tag t-ext">Luar</span> diambil dari internet</span><span><span class="tag t-rule">Aturan</span> tanpa AI, hasil selalu sama</span><span><span class="tag t-ai">AI</span> dibaca dan dinilai AI</span></div>
+  <div class="flow">
+    <div class="fb ext"><b>1. Cari berita</b>Google News, Bing, YouTube, media sosial. Untuk emiten juga harga dan laporan keuangan.<span class="tag t-ext">Luar</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>2. Saring</b>Buang duplikat, nilai jenis sumber dari domain, cocokkan nama perusahaan.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>3. Ambil isi</b>Buka tiap artikel, simpan isi dan gambarnya.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb db"><b>4. Simpan</b>Semua masuk database MySQL.</div>
+  </div>
+  <div class="flow">
+    <div class="fb ai"><b>5. AI membaca</b>Menilai tiap berita: peran perusahaan, dampak, temuan risiko, kutipan bukti.<span class="tag t-ai">AI</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>6. Cek bukti</b>Kutipan dari AI harus ada di teks artikel. Yang tidak ada dibuang.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb rule"><b>7. Hitung rating</b>Skor 0–100 dengan rumus tetap dari temuan di langkah 6.<span class="tag t-rule">Aturan</span></div><div class="ar">→</div>
+    <div class="fb ai"><b>8. Ringkasan</b>AI menyusun analisis dan dossier, lengkap dengan rujukan berita.<span class="tag t-ai">AI</span></div>
+  </div>
+
+  <h3>Urutan memakai</h3>
+  <ol>
+    <li>Tambah perusahaan, isi alias dan nama pengurus atau pemegang saham jika ada. Nama ini ikut dicari.</li>
+    <li>Task Runner: jalankan <b>Crawl</b> untuk perusahaan itu. Satu kali jalan sudah mengerjakan semuanya berurutan: data keuangan, cari berita, ambil isi dan gambar, klasifikasi AI, rating, analisis AI, lalu dossier.</li>
+    <li>Buka halaman perusahaan dan baca tab Risiko AI, Dossier, dan Keuangan. Cek temuannya ke dokumen asli.</li>
+  </ol>
+  <p><b>Data lama.</b> Untuk berita yang tersimpan sebelum isi artikel, klasifikasi AI, analisis, atau dossier ada, jalankan <b>Lengkapi data tersimpan</b> di Task Runner. Job ini mengulang langkah yang sama dengan urutan yang sama (isi dan gambar, klasifikasi AI, analisis, dossier) tanpa crawl ulang. Tombol terpisah per langkah juga tersedia.</p>
+  <p>Mengambil isi artikel dan klasifikasi AI tidak boleh berjalan bersamaan, karena AI membaca isi yang baru diambil.</p>
+
+  <h2 id="sumber">Sumber data</h2>
+  <p class="sub">Semua dari sumber publik. Aplikasi tidak mengakses data internal debitur.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Sumber</th><th>Diambil</th><th>Perlu diketahui</th></tr></thead>
+    <tbody>
+      <tr><td>Google News</td><td>Judul, tautan, tanggal, nama media</td><td>Tidak ada isi artikel. Isi diambil terpisah dari situs penerbit. Pencarian per crawl dibatasi 7 hari terakhir.</td></tr>
+      <tr><td>Bing News</td><td>Judul, cuplikan, tanggal, gambar</td><td>Cuplikan pendek.</td></tr>
+      <tr><td>YouTube</td><td>Judul dan deskripsi video</td><td>Pendapat kreator atau penonton, bukan pemberitaan.</td></tr>
+      <tr><td>Media sosial</td><td>Potongan teks lewat pencarian Google</td><td>Tidak lengkap dan tidak terverifikasi.</td></tr>
+      <tr><td>Situs artikel</td><td>Isi artikel dan gambar</td><td>Situs berbayar, wajib login, atau yang menolak akses tidak bisa diambil.</td></tr>
+      <tr><td>Yahoo Finance</td><td>Harga, valuasi, laporan keuangan</td><td>Hanya emiten. Sumber tidak resmi, bisa terlambat atau kosong.</td></tr>
+      <tr><td>IDX</td><td>Pengumuman 90 hari terakhir</td><td>Kadang memblokir akses otomatis.</td></tr>
+      <tr><td>Input analis</td><td>Nama, alias, pengurus, pemegang saham</td><td>Hasil pencarian bergantung pada kelengkapan input ini.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Penilaian jenis sumber</h3>
+  <p>Setiap berita digolongkan dari domain situsnya, tanpa AI. Ini hanya menunjukkan <b>jenis sumber</b>, bukan benar atau tidaknya isi berita.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Golongan</th><th>Domain</th><th>Skor</th><th>Bobot di rating</th></tr></thead>
+    <tbody>
+      <tr><td>Sumber resmi</td><td>Semua <code>*.go.id</code>, IDX, KSEI, KPEI</td><td>95</td><td>1,2</td></tr>
+      <tr><td>Media massa</td><td>Situs berita atau web lainnya</td><td>80</td><td>1,0</td></tr>
+      <tr><td>Medsos / forum</td><td>X, Instagram, Facebook, TikTok, Threads, LinkedIn, Reddit, YouTube, Kaskus, Stockbit, Telegram</td><td>38</td><td>0,5</td></tr>
+    </tbody>
+  </table></div>
+  <p>Situs yang tidak ada di daftar otomatis dianggap media massa, termasuk blog berkualitas rendah.</p>
+
+  <h2 id="ai">Peran AI</h2>
+  <p class="sub">AI hanya membaca teks yang sudah tersimpan lalu memberi penilaian. Ia tidak mencari data sendiri.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Fitur</th><th>Yang dibaca AI</th><th>Yang dihasilkan</th></tr></thead>
+    <tbody>
+      <tr><td>Menilai berita</td><td>Judul dan isi artikel, sampai 2000 karakter</td><td>Peran perusahaan, ringkasan, dampak, temuan risiko dengan kutipan bukti, jenis informasi (fakta/rumor/opini), sentimen, konten konsumen</td></tr>
+      <tr><td>Analisis perusahaan</td><td>Hasil rumus rating, data keuangan, sampai 22 berita (10 teratas dengan kutipan isi)</td><td>Ringkasan, faktor risiko dan positif, temuan akta, hal yang perlu diverifikasi</td></tr>
+      <tr><td>Dossier</td><td>Berita tersimpan dan profil perusahaan</td><td>Empat bagian: pemilik &amp; pengendali, klien &amp; proyek, akta &amp; perubahan, fasilitas bank</td></tr>
+      <tr><td>Asisten chat</td><td>Pertanyaan Anda. AI memanggil alat MCP untuk mengambil data (SQL tetap, hanya baca) lalu menjawab dari hasilnya</td><td>Jawaban teks dengan rujukan berita yang bisa diklik</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Pengaman</h3>
+  <ul>
+    <li>Kutipan bukti dari AI dicek: kalau kalimatnya tidak ada di artikel, temuan itu dibuang.</li>
+    <li>Setiap poin analisis harus menyebut dasarnya (nomor berita atau data keuangan). Nomor yang tidak ada dibuang.</li>
+    <li>Isi berita diperlakukan sebagai data. Perintah di dalam artikel diabaikan.</li>
+    <li>Asisten hanya mengambil data lewat alat MCP yang SQL-nya tetap dan berparameter. AI tidak pernah menulis SQL, dan user database-nya hanya boleh membaca. Pertanyaan di luar topik ditolak.</li>
+  </ul>
+  <h3>Yang tidak memakai AI</h3>
+  <p>Penggolongan jenis sumber, pencocokan nama ke berita, pembuangan duplikat, pengambilan isi dan gambar, data keuangan, urutan daftar berita, serta <b>perhitungan skor dan rating</b>.</p>
+  <h3>Model</h3>
+  <p>Utama: <code>openai/gpt-oss-120b</code> lewat Groq. Cadangan: Gemini. Asisten chat memakai Gemini dulu, lalu Groq.</p>
+
+  <h2 id="rating">Perhitungan rating</h2>
+  <p class="sub">AI menentukan apa temuannya. Rumus menentukan seberapa besar bobotnya.</p>
+
+  <h3>1. Poin satu temuan</h3>
+  <div class="formula">poin = tingkat × sumber × kebaruan × rumor × peran × sentimen</div>
+  <div class="tw"><table>
+    <thead><tr><th>Faktor</th><th>Nilai</th></tr></thead>
+    <tbody>
+      <tr><td>Tingkat (dari AI)</td><td>1 ringan, 2 rendah, 3 sedang, 4 tinggi, 5 sangat tinggi</td></tr>
+      <tr><td>Sumber</td><td>resmi 1,2 · media massa 1,0 · medsos/forum 0,5</td></tr>
+      <tr><td>Kebaruan</td><td>sampai 7 hari 1,0 · sampai 30 hari 0,8 · sampai 90 hari 0,5 · lebih lama 0,3</td></tr>
+      <tr><td>Rumor</td><td>0,6 jika AI menilai rumor, selain itu 1</td></tr>
+      <tr><td>Peran perusahaan (dari AI)</td><td>subjek utama 1 · ikut terlibat 0,8 · hanya disebut sekilas 0,25 · pihak lain 0</td></tr>
+      <tr><td>Sentimen (dari AI)</td><td>negatif 1 · netral 0,4 · positif 0. Kategori kepemilikan selalu 0,35, karena pergantian pengurus atau pemilik belum tentu buruk.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>Berita yang <b>belum dinilai AI tidak dihitung</b>. Jumlahnya ditulis di catatan halaman Risiko AI.</li>
+    <li>Tiap kategori hanya menghitung <b>4 temuan</b> terbesar, supaya banyak artikel tentang satu peristiwa tidak menggelembungkan skor.</li>
+    <li>Untuk emiten, data keuangan menambah poin kategori Keuangan: rugi bersih (6), ekuitas negatif (6), DER di atas 200% kecuali bank (4), laba operasi kurang dari 1,5× beban bunga (4), laba bersih turun 20% atau lebih dari tahun lalu (3), current ratio di bawah 1 (3), arus kas bebas negatif (2), harga saham turun 20% atau lebih dalam sebulan (2).</li>
+  </ul>
+
+  <h3>2. Skor kategori dan total</h3>
+  <div class="formula">skor kategori = 100 × (1 − e<sup>−jumlah poin / 12</sup>)<br>skor total = 100 × (1 − e<sup>−jumlah semua poin / 28</sup>)</div>
+  <p>Poin pertama menaikkan skor dengan cepat, poin berikutnya makin sedikit pengaruhnya, dan skor tidak pernah melewati 100. Angka 12 dan 28 ditentukan pembuat aplikasi dan belum diuji dengan data gagal bayar sungguhan.</p>
+
+  <h3>3. Rating</h3>
+  <div class="scale"><span style="width:20%;background:#2fbf71">Rendah</span><span style="width:25%;background:#fbbf24">Sedang</span><span style="width:25%;background:#f08a4b">Tinggi</span><span style="width:30%;background:#ef5b5b">Sangat tinggi</span></div>
+  <div class="sc-l"><span>0</span><span>20</span><span>45</span><span>70</span><span>100</span></div>
+  <p>Jika tidak ada berita yang sudah dinilai AI dan tidak ada data keuangan, rating tertulis <b>Data belum cukup</b>. Itu bukan berarti perusahaan aman.</p>
+
+  <h3>Contoh</h3>
+  <div class="card">
+    <p>Satu berita media massa berumur 10 hari. AI menilai: perusahaan subjek utama, fakta, sentimen negatif, temuan Hukum tingkat 4.</p>
+    <div class="formula">poin = 4 × 1,0 × 0,8 × 1 × 1 × 1 = 3,2</div>
+    <p>Jika ini satu-satunya temuan: skor kategori Hukum = 100 × (1 − e<sup>−3,2/12</sup>) ≈ <b>23</b>, skor total = 100 × (1 − e<sup>−3,2/28</sup>) ≈ <b>11</b>, rating <b>Rendah</b>. Satu berita saja belum cukup menaikkan rating. Yang menaikkan adalah banyak temuan yang baru, dari sumber kuat, dan menyangkut perusahaan langsung.</p>
+  </div>
+
+  <h3>Urutan daftar berita</h3>
+  <p>Opsi <b>Rekomendasi</b> hanya mengatur urutan tampilan dan tidak memengaruhi rating:</p>
+  <div class="formula">skor = 40 (jika AI menilai relevan) + 0,4 × skor sumber + kebaruan (50 dikurangi jam/6, minimal 0) + 8 (jika dampak buruk) + 3 × tingkat risiko − 20 (jika persepsi publik)</div>
+  <p>Opsi lain (terbaru, terlama, risiko tertinggi, sumber paling kredibel, paling sering muncul) mengurutkan menurut satu kolom saja.</p>
+
+  <h3>Arti label</h3>
+  <dl class="gl">
+    <dt>Risiko / Katalis positif / Netral</dt><dd>Penilaian AI atas isi berita terhadap kemampuan bayar dan reputasi debitur. Katalis positif berarti berita yang bisa menguatkan debitur, bukan saran investasi.</dd>
+    <dt>Perlu perhatian</dt><dd>Berita berdampak buruk, atau memuat temuan risiko tingkat 3 ke atas.</dd>
+    <dt>Belum dinilai AI</dt><dd>AI belum membaca berita ini. Dampak dan risikonya kosong, dan tidak dihitung dalam rating.</dd>
+    <dt>Peran perusahaan</dt><dd>Subjek utama, ikut terlibat, hanya disebut sekilas, atau pihak lain (misalnya perusahaan bernama mirip).</dd>
+    <dt>Sumber resmi</dt><dd>Domain instansi pemerintah atau bursa. Menunjukkan jenis sumber, bukan jaminan isinya benar.</dd>
+    <dt>Rumor</dt><dd>AI menilai kabar itu belum terverifikasi, misalnya memakai kata "diduga" atau bersumber anonim.</dd>
+    <dt>Angka biru [n]</dt><dd>Nomor berita rujukan dalam satu analisis atau dossier. Nomornya dibuat per analisis dan berganti bila dibuat ulang. Klik untuk membuka beritanya.</dd>
+  </dl>
+
+  <h2 id="batasan">Batasan</h2>
+  <div class="card stop"><b>Bukan keputusan kredit.</b> Jangan jadikan rating, analisis, atau dossier satu-satunya dasar menyetujui atau menolak pembiayaan.</div>
+  <h3>AI</h3>
+  <ul>
+    <li>AI bisa salah menafsirkan, misalnya tertukar antara pelaku dan korban, atau melewatkan bantahan.</li>
+    <li>Pengecekan kutipan hanya membuktikan kalimatnya ada di artikel, bukan bahwa tafsirannya benar.</li>
+    <li>Akurasi AI belum diuji dengan data yang dinilai manusia, dan hasilnya belum diaudit.</li>
+    <li>Hasil bisa berubah jika berita dinilai ulang atau model diganti.</li>
+  </ul>
+  <h3>Data</h3>
+  <ul>
+    <li>Hanya mencakup berita yang muncul di Google, Bing, dan YouTube dan bisa diakses. Berita penting bisa terlewat.</li>
+    <li>Jika isi artikel tidak bisa diambil, AI hanya membaca judul atau cuplikan.</li>
+    <li>Perusahaan dengan nama umum bisa tercampur dengan pihak lain.</li>
+    <li>Rumor dan media sosial tidak terverifikasi. Berita lama atau yang sudah dibantah bisa muncul.</li>
+    <li>Perusahaan tertutup tidak punya laporan keuangan publik, jadi ratingnya hanya dari berita.</li>
+    <li>Tidak adanya berita buruk bukan bukti perusahaan sehat. Rating tidak melihat arus kas internal, agunan, atau riwayat pembayaran.</li>
+  </ul>
+  <h3>Data keluar dan hak cipta</h3>
+  <ul>
+    <li><b>Teks berita yang disimpan dikirim ke Groq dan Google Gemini</b> untuk dinilai. Pertanyaan di asisten chat beserta ringkasan datanya juga dikirim ke sana. Jangan isi data rahasia debitur di kolom alias atau pengurus jika tidak ingin dikirim keluar.</li>
+    <li>Isi artikel disimpan untuk analisis internal. Hak ciptanya tetap milik penerbit.</li>
+    <li>Versi prototype ini belum punya login, pembagian peran, atau catatan siapa melakukan apa.</li>
+  </ul>
+  <h3>Yang sebaiknya dilakukan</h3>
+  <ol>
+    <li>Buka beritanya dan baca. Perhatikan apakah perusahaan itu pelaku, korban, atau hanya disebut.</li>
+    <li>Cocokkan temuan penting dengan dokumen: akta dan SK AHU, laporan keuangan audit, SLIK OJK, perkara di SIPP, kondisi agunan.</li>
+    <li>Anggap berita berlabel rumor, medsos, atau belum dinilai AI sebagai petunjuk, bukan fakta.</li>
+    <li>Jalankan crawl dan klasifikasi ulang sebelum analisis penting, dan catat tanggal datanya.</li>
+  </ol>
+
+  <h2 id="istilah">Istilah</h2>
+  <dl class="gl">
+    <dt>FAP</dt><dd>Tahap pemrosesan debitur di perusahaan pembiayaan. Kepanjangan resminya tidak didefinisikan di aplikasi; ikuti definisi internal perusahaan.</dd>
+    <dt>Debitur</dt><dd>Perusahaan klien yang mengajukan atau menerima pembiayaan, yaitu perusahaan yang dipantau di sini.</dd>
+    <dt>Dossier</dt><dd>Berkas ringkas tentang struktur dan hubungan bisnis perusahaan, disusun AI dari berita. Isinya empat bagian, dan setiap poin membawa kutipan serta nomor berita. Status "dari berita" berarti belum dicocokkan dengan dokumen resmi.</dd>
+    <dt>Deed discovery</dt><dd>Menelusuri siapa pengurus, pemegang saham, dan pengendali perusahaan beserta perubahannya, dari akta. Hasil dari berita hanya petunjuk awal.</dd>
+    <dt>Akta dan AHU</dt><dd>Akta dibuat notaris dan disahkan Kementerian Hukum lewat sistem AHU. Ini dokumen resmi yang menentukan pengurus dan pemegang saham.</dd>
+    <dt>PSP</dt><dd>Pemegang saham pengendali.</dd>
+    <dt>UBO</dt><dd>Pemilik manfaat: orang atau entitas di ujung rantai kepemilikan yang akhirnya mengendalikan atau menikmati manfaat perusahaan.</dd>
+    <dt>Bowheer</dt><dd>Pemberi kerja atau pemilik proyek yang memakai jasa debitur.</dd>
+    <dt>RUPS / RUPSLB</dt><dd>Rapat umum pemegang saham, tahunan atau luar biasa. Di sini pengurus diganti, saham dialihkan, atau aksi korporasi disetujui.</dd>
+    <dt>Divestasi / akuisisi</dt><dd>Divestasi: menjual sebagian kepemilikan. Akuisisi: membeli kepemilikan perusahaan lain.</dd>
+    <dt>SLIK OJK</dt><dd>Sistem riwayat kredit milik OJK. Dipakai untuk memeriksa fasilitas dan kolektibilitas kredit. Tidak bisa diakses aplikasi ini.</dd>
+    <dt>SIPP</dt><dd>Sistem penelusuran perkara pengadilan.</dd>
+    <dt>PKPU / pailit</dt><dd>Penundaan kewajiban pembayaran utang / putusan kepailitan. Keduanya sinyal terberat di kategori Hukum.</dd>
+    <dt>NIB</dt><dd>Nomor Induk Berusaha, identitas izin usaha dari sistem OSS.</dd>
+    <dt>Emiten / Tbk</dt><dd>Perusahaan yang tercatat di bursa, sehingga punya harga saham dan laporan keuangan publik. Perusahaan tertutup tidak punya.</dd>
+    <dt>DER</dt><dd>Total utang dibagi ekuitas. Makin tinggi, makin bergantung pada utang.</dd>
+    <dt>Current ratio</dt><dd>Aset lancar dibagi kewajiban jangka pendek. Di bawah 1 berarti aset lancar tidak cukup menutup kewajiban setahun ke depan.</dd>
+    <dt>Interest coverage</dt><dd>Laba operasi dibagi beban bunga, yaitu berapa kali bunga tertutup.</dd>
+    <dt>Free cash flow</dt><dd>Arus kas bebas setelah belanja modal. Negatif berarti kas terserap.</dd>
+    <dt>DSCR</dt><dd>Kemampuan arus kas membayar cicilan pokok dan bunga. Tidak dihitung otomatis; analis menghitungnya sendiri.</dd>
+    <dt>Plafon</dt><dd>Batas maksimum fasilitas kredit dari bank, bukan jumlah yang sudah terpakai.</dd>
+    <dt>Cleaned</dt><dd>Berita yang dinilai relevan dengan perusahaan. Berita tutorial, promo, atau tentang pihak lain disaring.</dd>
+    <dt>Checkpoint</dt><dd>Penanda perusahaan yang sudah selesai diproses sebuah job, dipakai untuk melanjutkan job yang terputus.</dd>
+  </dl>
+
+  <h2 id="faq">Tanya jawab</h2>
+  <details><summary>Kenapa rating perusahaan tertulis "Data belum cukup"?</summary><div><p>Belum ada berita yang dinilai AI dan tidak ada data keuangan. Jalankan "Ambil isi &amp; gambar artikel", lalu "Klasifikasi AI ulang" di Task Runner.</p></div></details>
+  <details><summary>Kenapa ada berita "Belum dinilai AI"?</summary><div><p>Berita itu baru, atau disimpan sebelum format penilaian yang sekarang. Aplikasi tidak menebak dampaknya dari kata kunci karena hasilnya sering meleset. Dampak dikosongkan sampai AI membacanya.</p></div></details>
+  <details><summary>Kenapa dua berita mirip dinilai berbeda?</summary><div><p>AI membaca isi tiap berita, dan isinya bisa berbeda walau judulnya mirip. Penilaian AI juga tidak selalu sama setiap kali. Buka kedua berita dan bandingkan kutipan buktinya.</p></div></details>
+  <details><summary>Bisakah bobot rating diubah?</summary><div><p>Bobot ada di <code>src/risk.js</code> dan dijelaskan di halaman ini. Mengubahnya memengaruhi semua rating, jadi halaman ini perlu ikut diperbarui.</p></div></details>
+  <details><summary>Apakah angka [3] di analisis selalu merujuk ke berita yang sama?</summary><div><p>Tidak. Nomor hanya berlaku di dalam satu analisis atau dossier, dan berganti saat dibuat ulang. Klik angkanya untuk membuka berita yang dimaksud.</p></div></details>
+  <details><summary>Job terputus, apakah data hilang?</summary><div><p>Data yang sudah tersimpan aman. Checkpoint dicatat per perusahaan: yang sudah selesai dilewati saat "Lanjutkan", yang terputus di tengah diulang dari awal. Berita yang sudah tersimpan tidak digandakan.</p></div></details>
+</article>
+<aside class="toc"><b>Isi halaman</b><a href="#alur">Alur</a><a href="#sumber">Sumber data</a><a href="#ai">Peran AI</a><a href="#rating">Perhitungan rating</a><a href="#batasan">Batasan</a><a href="#istilah">Istilah</a><a href="#faq">Tanya jawab</a></aside>
+</div>
+</body>
+</html>

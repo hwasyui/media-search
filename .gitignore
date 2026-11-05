@@ -10,6 +10,7 @@ logs/
 
 # Data lokal yang dibuat aplikasi (profil browser berisi cookie, laporan, arsip crawler)
 data/playwright_profile/
+data/covers/
 data/reports/
 listener/data/
 listener/__pycache__/

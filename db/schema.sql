@@ -70,6 +70,12 @@ CREATE TABLE IF NOT EXISTS news_items (
   risk_level       TINYINT UNSIGNED NOT NULL DEFAULT 0,
   image_url        VARCHAR(1024) NULL,
   image_checked    TINYINT(1) NOT NULL DEFAULT 0,
+  content_html     MEDIUMTEXT NULL,
+  content_checked  TINYINT(1) NOT NULL DEFAULT 0,
+  article_url      VARCHAR(2048) NULL,
+  link_error       VARCHAR(40) CHARACTER SET ascii NULL,
+  ai_summary       TEXT NULL,
+  company_role     VARCHAR(16) CHARACTER SET ascii NULL,
   source_domain    VARCHAR(255) CHARACTER SET ascii NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_company_url (company_id, url_hash),
@@ -176,6 +182,15 @@ CREATE TABLE IF NOT EXISTS company_analyses (
   CONSTRAINT fk_analysis_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
+-- Dossier terstruktur per perusahaan (Pemilik manfaat, Klien/proyek, Akta/korporasi, Fasilitas bank) dengan status verifikasi & kutipan sumber.
+CREATE TABLE IF NOT EXISTS company_dossiers (
+  company_id   VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  generated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  content      JSON NOT NULL,
+  PRIMARY KEY (company_id),
+  CONSTRAINT fk_dossier_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
 -- Job Task Runner yang tahan restart: status, progres, checkpoint (perusahaan yang sudah selesai), dan log terakhir.
 CREATE TABLE IF NOT EXISTS job_runs (
   id           CHAR(8) CHARACTER SET ascii NOT NULL,
@@ -217,9 +232,9 @@ CREATE TABLE IF NOT EXISTS risk_profiles (
 -- sebagai tidak relevan (berita yang hanya menyebut stakeholder wajib dikonfirmasi AI), dan bukan konten tutorial/promo konsumen. VIEW (bukan salinan) supaya selalu sinkron dengan news_items (data mentah). Dipakai website & analisis.
 CREATE OR REPLACE VIEW news_cleaned AS
 SELECT * FROM news_items
-WHERE related = 1 AND content_kind <> 'konsumen' AND (
-  (related_via = 'perusahaan' AND (relevant IS NULL OR relevant = 1))      -- menyebut nama/alias perusahaan: tampil kecuali AI bilang tidak relevan
-  OR (related_via <> 'perusahaan' AND relevant = 1)                        -- hanya menyebut pemangku kepentingan: tampil bila AI mengonfirmasi relevan
+WHERE content_kind <> 'konsumen' AND (
+  (ai_status = 'ok' AND relevant = 1)                                      -- sudah dinilai AI: AI yang menentukan relevansi (dari isi artikel), termasuk berita yang hanya menyebut pemangku kepentingan
+  OR (ai_status <> 'ok' AND related = 1 AND related_via = 'perusahaan')    -- belum dinilai AI: tampil sementara bila teks (judul+isi) menyebut nama/alias perusahaan; ditandai "belum dinilai AI" di UI
 );
 
 -- View untuk chatbot/BI: satu baris per perusahaan dengan rating risiko terbaru, analisis AI terbaru, dan hitungan berita 30 hari (cleaned).

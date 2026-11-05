@@ -2,7 +2,7 @@
 (() => {
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const path = location.pathname.replace(/\/+$/, '') || '/';
-  const here = path.endsWith('/portal.html') || path === '' || path === '/' ? 'portal' : (path.endsWith('/jobs.html') || path.endsWith('/jobs-advanced.html')) ? 'jobs' : path.endsWith('/index.html') ? 'analyzer' : '';
+  const here = path.endsWith('/portal.html') || path === '' || path === '/' ? 'portal' : (path.endsWith('/jobs.html') || path.endsWith('/jobs-advanced.html')) ? 'jobs' : path.endsWith('/index.html') ? 'analyzer' : path.endsWith('/help.html') ? 'help' : '';
 
   function mount() {
     const main = document.createElement('div');
@@ -22,7 +22,7 @@
       <nav class="shell-nav">
         <a href="/jobs.html" class="${here === 'jobs' ? 'on' : ''}">Task Runner</a>
       </nav>
-      <div class="shell-foot" id="shellFoot"></div>`;
+      <div class="shell-foot"><a class="shell-help ${here === 'help' ? 'on' : ''}" href="/help.html">HELP</a><div id="shellFoot">Prototype</div></div>`;
     document.body.classList.add('has-shell');
     // Bar atas khusus HP/tablet (tombol ☰) di dalam area konten, dan lapisan gelap untuk menutup menu
     const mbar = document.createElement('div');
@@ -38,10 +38,17 @@
     side.addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });        // pilih menu -> tertutup
     addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
     addEventListener('hashchange', () => setMenu(false));
+    if (!window.__msTip) { const sc = document.createElement('script'); sc.src = '/tooltip.js'; document.head.appendChild(sc); }      // tooltip bergaya di semua halaman
     window.shellRefresh = loadCompanies;
     loadCompanies();
     addEventListener('hashchange', loadCompanies);
   }
+
+  // Kode singkat perusahaan tanpa ticker: inisial nama bila terdiri dari beberapa kata, selain itu 5 huruf pertama
+  const codeOf = (c) => {
+    const w = String(c.name || '').replace(/\b(pt|tbk|persero|cv)\b|[()]/gi, ' ').split(/\s+/).filter(Boolean);
+    return (w.length >= 2 ? w.slice(0, 4).map((x) => x[0]).join('') : (w[0] || c.id).slice(0, 5)).toUpperCase();
+  };
 
   async function loadCompanies() {
     try {
@@ -51,14 +58,17 @@
         const rk = c.risk;
         const st = !rk || rk.rating === 'tidak_cukup_data' ? '' : { rendah: 'ok', sedang: 'amber', tinggi: 'orange', sangat_tinggi: 'risk' }[rk.rating] || '';
         const LABEL = { rendah: 'Rendah', sedang: 'Sedang', tinggi: 'Tinggi', sangat_tinggi: 'Sangat tinggi' };
-        const tip = !rk ? 'Abu-abu: belum dinilai. Belum ada profil risiko; jalankan crawl di Task Runner atau buka halaman perusahaan.'
-          : rk.rating === 'tidak_cukup_data' ? 'Abu-abu: data belum cukup. Belum ada berita atau data keuangan yang tersimpan untuk menilai risiko, bukan berarti aman. Jalankan crawl di Task Runner.'
-          : 'Rating risiko ' + LABEL[rk.rating] + ' (skor ' + rk.score + '/100) dari ' + (rk.coverage?.newsItems ?? 0) + ' berita terkait' + (rk.coverage?.hasFinancial ? ' + data keuangan' : '')
-            + '. Indikator awal dari informasi publik, bukan keputusan kredit. Klik untuk melihat bukti.';
+        const cv = rk?.coverage || {};
+        const basis = cv.assessed != null
+          ? 'Dihitung dari ' + cv.assessed + ' berita yang sudah dinilai AI' + (cv.hasFinancial ? ' + data keuangan' : '') + (cv.unassessed ? '; ' + cv.unassessed + ' berita lain belum dinilai AI dan tidak dihitung.' : '.')
+          : 'Perhitungan lama (' + (cv.newsItems ?? 0) + ' berita, belum memakai penilaian AI atas isi berita). Buka halaman perusahaan untuk menghitung ulang.';
+        const tip = !rk ? 'Belum dinilai::Belum ada profil risiko. Jalankan crawl di Task Runner atau buka halaman perusahaan.'
+          : rk.rating === 'tidak_cukup_data' ? 'Data belum cukup::Belum ada berita yang dinilai AI atau data keuangan untuk menilai risiko. Ini bukan berarti aman.'
+          : 'Rating risiko pembiayaan: ' + LABEL[rk.rating] + ' (skor ' + rk.score + ' dari 100)::' + basis + ' Ini indikator awal, bukan keputusan kredit. Klik perusahaan untuk melihat buktinya. Cara hitung ada di HELP.';
         const on = here === 'portal' && cur === c.id ? 'on' : '';
-        return `<a href="/portal.html#/c/${esc(c.id)}" class="${on}" title="${esc(c.name)}"><span class="tk">${esc(c.ticker || c.id.slice(0, 5).toUpperCase())}</span><span class="nm">${esc(c.name.replace(/^PT\s+/i, ''))}</span><span class="st ${st}" title="${esc(tip)}"></span></a>`;
+        return `<a href="/portal.html#/c/${esc(c.id)}" class="${on}" title="${esc(c.name)}"><span class="tk">${esc(c.ticker || codeOf(c))}</span><span class="nm">${esc(c.name.replace(/^PT\s+/i, ''))}</span><span class="st ${st}" title="${esc(tip)}"></span></a>`;
       }).join('') || '<div style="padding:4px 18px;color:var(--sh-dim);font-size:12px">Belum ada perusahaan.</div>';
-      document.getElementById('shellFoot').innerHTML = `${list.length} perusahaan dipantau<div style="margin-top:6px;cursor:help" title="Warna titik di samping nama perusahaan = rating risiko pembiayaan: abu-abu data belum cukup, hijau rendah, kuning sedang, oranye tinggi, merah sangat tinggi. Arahkan kursor ke titik untuk penjelasan.">● warna = rating risiko (hover)</div>`;
+      document.getElementById('shellFoot').innerHTML = 'Prototype';
       document.querySelector('[data-home]')?.classList.toggle('on', here === 'portal' && !cur);
       window.shellPortfolio = list;
     } catch { /* sidebar tetap tampil tanpa daftar */ }

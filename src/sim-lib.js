@@ -51,11 +51,18 @@ export async function resolveTargets(args) {
   return { keywords, sources, modifiers, entity };
 }
 
+// Modifier topik khusus (akta, klien, kredit, hukum) hanya bermakna untuk pencarian berita; YouTube dan media sosial tidak diberi query itu.
+const NEWS_ONLY_MODS = new Set(['deed', 'klien', 'kredit', 'hukum']);
+const NEWS_SOURCES = new Set(['google_news', 'bing_news']);
+
 export function buildJobs(keywords, sources, modifiers = ['none']) {
   const jobs = [];
   for (const keyword of keywords)
     for (const source of sources)
-      for (const modifier of modifiers) jobs.push({ keyword, source, modifier, q: buildQuery(keyword, modifier) });
+      for (const modifier of modifiers) {
+        if (NEWS_ONLY_MODS.has(modifier) && !NEWS_SOURCES.has(source)) continue;
+        jobs.push({ keyword, source, modifier, q: buildQuery(keyword, modifier) });
+      }
   return jobs;
 }
 
