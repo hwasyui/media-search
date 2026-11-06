@@ -1,0 +1,44 @@
+name: Mingguan - lengkapi data, analisis AI, dan dossier
+
+# Setiap Minggu 22.00 WIB (15.00 UTC): melengkapi data tersimpan (unmask, isi artikel, klasifikasi AI) untuk semua perusahaan,
+# lalu membuat ulang analisis AI dan dossier tanpa menunggu jadwal 7 hari (forceAnalysis).
+# Berjalan di runner self-hosted di komputer yang menjalankan server Media Search; lihat SETUP.md.
+on:
+  schedule:
+    - cron: '0 15 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: media-search-job
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    runs-on: self-hosted
+    timeout-minutes: 720
+    env:
+      BASE: ${{ vars.MEDIA_SEARCH_URL || 'http://localhost:3062' }}
+    steps:
+      - name: Jalankan "Lengkapi data tersimpan" (analisis AI dan dossier dibuat ulang) di Task Runner
+        shell: bash
+        run: |
+          json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log($1)}catch{console.log('')}})"; }
+          payload='{"type":"backfill","options":{"forceAnalysis":true}}'
+          id=""
+          for i in $(seq 1 12); do
+            res=$(curl -s -m 30 -X POST "$BASE/api/jobs" -H 'Content-Type: application/json' -d "$payload" || true)
+            id=$(echo "$res" | json "j.id||''")
+            [ -n "$id" ] && break
+            echo "job belum bisa dimulai ($res); coba lagi 5 menit"; sleep 300
+          done
+          [ -z "$id" ] && { echo "gagal memulai job di $BASE"; exit 1; }
+          echo "job $id dimulai"
+          st=""; kosong=0
+          while true; do
+            st=$(curl -s -m 30 "$BASE/api/jobs/$id" | json "j.status")
+            if [ -z "$st" ]; then kosong=$((kosong+1)); [ $kosong -ge 30 ] && { echo "server tidak merespons"; exit 1; }; sleep 60; continue; fi
+            kosong=0
+            case "$st" in running|waiting) sleep 60 ;; *) break ;; esac
+          done
+          curl -s -m 30 "$BASE/api/jobs/$id" | json "'status: '+j.status+(j.error?' | '+j.error:'')+'\n'+(j.logs||[]).slice(-12).join('\n')"
+          [ "$st" = "done" ]

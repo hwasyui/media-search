@@ -120,7 +120,7 @@ const shape = (r) => ({ ...r, risk_signals: parse(r.risk_signals), risk_tags: pa
 
 export async function listNews({ sort = 'mix', limit = 30, offset = 0, raw = false, ...f } = {}) {
   const table = srcTable(raw);
-  const w = where({ days: 30, ...f }, { table });
+  const w = where({ days: 7, ...f }, { table });
   const lim = Math.min(100, Math.max(1, Number(limit) || 30));
   const off = Math.max(0, Number(offset) || 0);
   const [rows] = await db().query(
@@ -132,14 +132,14 @@ export async function listNews({ sort = 'mix', limit = 30, offset = 0, raw = fal
 
 // Total hasil untuk semua filter yang aktif (untuk "Menampilkan X dari Y").
 export async function newsTotal({ raw = false, ...f } = {}) {
-  const w = where({ days: 30, ...f }, { table: srcTable(raw) });
+  const w = where({ days: 7, ...f }, { table: srcTable(raw) });
   const [[r]] = await db().query(`SELECT COUNT(*) n FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql}`, w.params);
   return Number(r.n);
 }
 
 // Hitungan untuk badge tab: semua filter lain tetap berlaku, tab-nya sendiri diabaikan.
 export async function newsCounts({ raw = false, ...f } = {}) {
-  const w = where({ days: 30, ...f }, { skipTab: true });
+  const w = where({ days: 7, ...f }, { skipTab: true });
   const [[r]] = await db().query(
     `SELECT COUNT(*) AS \`all\`,
        SUM(n.credibility_tier = 'official') AS official, SUM(n.category = 'rumor') AS rumor,
@@ -152,7 +152,7 @@ export async function newsCounts({ raw = false, ...f } = {}) {
 }
 
 // Pilihan untuk dropdown beserta jumlahnya (mengikuti perusahaan, rentang waktu, dan mode mentah/cleaned).
-export async function newsFacets({ company, days = 30, raw = false } = {}) {
+export async function newsFacets({ company, days = 7, raw = false } = {}) {
   const w = where({ company, days }, { table: srcTable(raw) });
   const base = `FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql}`;
   const grp = async (col, extra = '') => {
@@ -180,7 +180,7 @@ export async function newsFacets({ company, days = 30, raw = false } = {}) {
 }
 
 // Jumlah per platform untuk dropdown (kompatibel dengan pemanggil lama).
-export async function platformCounts({ company, q, days = 30, raw = false } = {}) {
+export async function platformCounts({ company, q, days = 7, raw = false } = {}) {
   const w = where({ company, q, days }, { table: srcTable(raw) });
   const [rows] = await db().query(
     `SELECT n.platform p, COUNT(*) n FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql} GROUP BY n.platform`,
@@ -205,7 +205,7 @@ export async function layerCounts() {
 }
 
 // Ringkasan sinyal per perusahaan (kartu "Portofolio" / panel kanan) dari data cleaned.
-export async function companyNewsStats(days = 30, raw = false) {
+export async function companyNewsStats(days = 7, raw = false) {
   const [rows] = await db().query(
     `SELECT n.company_id, COUNT(*) AS total, SUM(n.credibility_tier = 'official') AS official, SUM(n.category = 'rumor') AS rumor,
        SUM(n.impact = 'baik') AS positive, SUM(${RISK_SQL}) AS risk, MAX(n.sort_at) AS latest

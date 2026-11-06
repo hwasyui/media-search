@@ -143,7 +143,7 @@ function cleanBingQuery(q) {
 
 async function fetchBingRssItems(query) {
   try {
-    const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&setlang=id&cc=ID`;
+    const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&setlang=id&cc=ID&qft=interval%3d%227%22`;
     const res = await get(url);
     return parseRss(await res.text());
   } catch {
@@ -151,12 +151,12 @@ async function fetchBingRssItems(query) {
   }
 }
 
-// ---------- Bing News (RSS) dengan Smart Query & Fallback ----------
+// ---------- Bing News (RSS) dengan Smart Query & Batasan 7 Hari ----------
 async function bingNews(q) {
   const cleaned = cleanBingQuery(q);
   const cutoff7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  // 1. Ambil RSS dengan query yang sudah dibersihkan
+  // 1. Ambil RSS dengan query yang sudah dibersihkan dan interval 7 hari
   let rawItems = await fetchBingRssItems(cleaned);
 
   // 2. Jika 0 hasil dan query memakai tanda kutip ganda kaku, coba lepaskan tanda kutip
@@ -164,16 +164,11 @@ async function bingNews(q) {
     rawItems = await fetchBingRssItems(cleaned.replace(/"/g, '').trim());
   }
 
-  // 3. Filter 7 hari terakhir jika ada berita baru
-  let matched = rawItems.filter((i) => {
+  // 3. Filter ketat: hanya berita dalam 7 hari terakhir (tidak ada fallback berita lama)
+  const matched = rawItems.filter((i) => {
     const t = Date.parse(i.pubDate);
-    return !Number.isNaN(t) ? t >= cutoff7d : true;
+    return !Number.isNaN(t) ? t >= cutoff7d : false;
   });
-
-  // 4. Fallback: jika dalam 7 hari tidak ada berita, tampilkan berita terkini yang tersedia (hingga 30 hari)
-  if (!matched.length && rawItems.length) {
-    matched = rawItems;
-  }
 
   const seen = new Set();
   const results = [];
@@ -239,7 +234,7 @@ async function googleSocial(q) {
   try {
     xml = await (await get(url)).text();
   } catch (e) {
-    const fallbackUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(`${cleanQ} ${socialSites}`)}&hl=id&gl=ID&ceid=ID:id`;
+    const fallbackUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(`${cleanQ} ${socialSites} when:7d`)}&hl=id&gl=ID&ceid=ID:id`;
     xml = await (await get(fallbackUrl)).text();
   }
 

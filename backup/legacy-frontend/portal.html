@@ -503,7 +503,7 @@ function tabsHtml(counts, current, attr) {
 function privateProfile(c, counts) {
   const sh = (c.stakeholders || []).filter((x) => x.name);
   return `<div class="eyebrow" style="margin:0 0 8px">STATUS PROFIL · PERUSAHAAN TERTUTUP</div>
-    <div class="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan${(c.aliases || []).length ? ' + ' + c.aliases.length + ' alias' : ''}${sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + esc(sh.slice(0, 3).map((x) => x.name).join(', ')) + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>${counts.all}</b> berita 30 hari.</span></div>
+    <div class="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan${(c.aliases || []).length ? ' + ' + c.aliases.length + ' alias' : ''}${sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + esc(sh.slice(0, 3).map((x) => x.name).join(', ')) + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>${counts.all}</b> berita 7 hari.</span></div>
     <div class="pf-row"><b>Tidak tersedia</b><span>Harga saham dan laporan keuangan publik. Rating hanya mencerminkan berita, bukan kondisi keuangan.</span></div>
     <div class="pf-row"><b>Perlu dilengkapi analis</b><span>Akta &amp; SK Kemenkumham (AHU), laporan keuangan audit, SLIK${sh.length ? '' : '; <span class="down">nama pengurus/pemegang saham belum diisi, sehingga berita lewat mereka belum terpantau</span>'}.</span></div>`;
 }

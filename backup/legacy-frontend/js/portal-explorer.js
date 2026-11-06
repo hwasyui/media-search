@@ -21,7 +21,7 @@ const PILL_GROUPS = [
   ['platform', 'Jenis sumber', 'platform', 'platform', ''],
   ['ai', 'Status penilaian AI', 'ai', 'ai', 'Berita yang belum dinilai AI belum punya dampak dan tag risiko, dan belum dihitung dalam rating.'],
 ];
-const newFeedState = () => ({ sort: 'mix', q: '', days: '30', platform: '', impact: '', riskCat: '', riskMin: '', ai: '', source: '', company: '', _adv: false });
+const newFeedState = () => ({ sort: 'mix', q: '', days: '7', platform: '', impact: '', riskCat: '', riskMin: '', ai: '', source: '', company: '', _adv: false });
 const facetCache = new Map();
 let exploreToken = 0;
 
@@ -32,7 +32,7 @@ function activeFilters(st, withCompany) {
   for (const [k] of PILL_GROUPS) if (st[k]) out.push([k, LBL[k][st[k]] || st[k]]);
   if (st.riskMin) out.push(['riskMin', LBL.riskMin[st.riskMin] || 'Risiko ≥ ' + st.riskMin]);
   if (st.source) out.push(['source', 'Sumber: ' + st.source]);
-  if (st.days !== '30') out.push(['days', (DAYS_OPTS.find((d) => d[0] === st.days) || [0, st.days])[1]]);
+  if (st.days !== '7') out.push(['days', (DAYS_OPTS.find((d) => d[0] === st.days) || [0, st.days])[1]]);
   return out;
 }
 
@@ -103,7 +103,13 @@ async function renderExplorer(opts) {
   const showLead = opts.lead && st.sort === 'mix' && !st.q && !nFilters && !st.company && items.length >= 5 && leadAt >= 0;
   let list;
   if (!items.length) {
-    list = '<div class="empty"><b>Tidak ada berita yang cocok</b>' + (act.length ? 'Filter terlalu ketat atau belum ada data untuk pilihan ini.<div style="margin-top:12px"><button class="btn" id="freset2" type="button">Reset semua filter</button></div>'
+    // Tanpa hasil di rentang waktu terpilih: sarankan semua rentang waktu (tanpa query tambahan ke database)
+    const wide = st.days !== '0';
+    const rangeLbl = ((DAYS_OPTS.find((d) => d[0] === st.days) || [0, st.days])[1] || '').toLowerCase();
+    list = '<div class="empty"><b>Tidak ada berita yang cocok</b>' + (act.length || wide
+      ? (wide ? 'Tidak ada hasil di ' + esc(rangeLbl) + '. Coba di semua rentang waktu.' : 'Filter terlalu ketat atau belum ada data untuk pilihan ini.')
+        + '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' + (wide ? '<button class="btn" id="fwide" type="button">Coba di semua rentang waktu</button>' : '')
+        + (act.length ? '<button class="btn" id="freset2" type="button">Reset semua filter</button>' : '') + '</div>'
       : 'Belum ada berita tersimpan. Jalankan crawl di Task Runner.') + '</div>';
   } else if (showLead) {
     const lead = items[leadAt], rest = items.filter((_, i) => i !== leadAt);
@@ -154,5 +160,6 @@ async function renderExplorer(opts) {
   q.onkeydown = (e) => { if (e.key === 'Enter') { clearTimeout(t); set('q', e.target.value.trim()); } };
   opts.mount.querySelector('#fadv').onclick = (e) => { st._adv = opts.state._adv = !st._adv; opts.mount.querySelector('#fpanel').hidden = !st._adv; e.currentTarget.setAttribute('aria-expanded', st._adv); };
   for (const id of ['freset', 'freset2']) { const b = opts.mount.querySelector('#' + id); if (b) b.onclick = resetAll; }
-  opts.mount.querySelectorAll('.achip').forEach((c) => (c.onclick = () => { const k = c.dataset.x; set(k, k === 'days' ? '30' : ''); }));
+  { const w = opts.mount.querySelector('#fwide'); if (w) w.onclick = () => set('days', '0'); }
+  opts.mount.querySelectorAll('.achip').forEach((c) => (c.onclick = () => { const k = c.dataset.x; set(k, k === 'days' ? '7' : ''); }));
 }
