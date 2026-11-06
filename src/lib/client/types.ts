@@ -29,4 +29,4 @@ export interface Company {
 export interface FeedState {
   sort: string; q: string; days: string; platform: string; impact: string; riskCat: string; riskMin: string; ai: string; source: string; company: string; _adv: boolean;
 }
-export const newFeedState = (): FeedState => ({ sort: 'mix', q: '', days: '30', platform: '', impact: '', riskCat: '', riskMin: '', ai: '', source: '', company: '', _adv: false });
+export const newFeedState = (): FeedState => ({ sort: 'mix', q: '', days: '7', platform: '', impact: '', riskCat: '', riskMin: '', ai: '', source: '', company: '', _adv: false });

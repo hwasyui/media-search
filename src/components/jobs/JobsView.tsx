@@ -14,12 +14,12 @@ const MOD_LABEL: Record<string, string> = { none: 'Polos', isu: 'Isu / kabar', v
 
 // Jalur yang dipakai tiap tombol (harus sama dengan lanesOf di server). Tombol dinonaktifkan hanya bila jalurnya sedang dipakai job lain,
 // jadi crawl dan AI bisa berjalan bersamaan. "Full pipeline" tetap bisa dipakai saat AI sibuk: server otomatis menjalankannya tanpa AI.
-const LANES: Record<string, string[]> = { goOne: ['crawl'], goAll: ['crawl'], goAllRaw: ['crawl'], goReclass: ['ai'], goContent: ['crawl', 'ai'], goBackfill: ['crawl', 'ai'], goBackfillOne: ['crawl', 'ai'], goFin: ['crawl'], goAnalysis: ['ai'], goRescore: ['db'] };
+const LANES: Record<string, string[]> = { goPipeline: ['crawl'], goPipelineRaw: ['crawl'], goBackfill: ['crawl', 'ai'], goContent: ['crawl', 'ai'], goReclass: ['ai'], goAnalysis: ['ai'], goDossier: ['ai'], goFin: ['crawl'], goRescore: ['db'] };
 const BTN_TITLE: Record<string, string> = {
-  goAllRaw: 'Hanya mengambil dan menyimpan data mentah; AI bisa dijalankan terpisah dan bersamaan',
-  goContent: 'Dua hal sekaligus: (1) unmask tautan Google News ke alamat asli penerbit (disimpan di article_url), (2) satu kali unduh per artikel untuk isi (body HTML) dan gambar pratinjau. Ikut mencoba lagi yang gagal sebelumnya. AI tidak boleh berjalan bersamaan.',
+  goPipelineRaw: 'Hanya mencari dan menyimpan berita mentah; langkah AI bisa dijalankan terpisah sesudahnya.',
+  goContent: 'Dua hal sekaligus: (1) unmask tautan Google News ke alamat asli penerbit (disimpan di article_url), (2) satu kali unduh per artikel untuk isi dan gambar pratinjau. Ikut mencoba lagi yang gagal sebelumnya. AI tidak boleh berjalan bersamaan.',
   goReclass: 'AI membaca isi artikel dan menilai berita yang belum dinilai atau formatnya lama.',
-  goDossier: 'Dossier korporasi 4 bagian (pemilik & pengendali, klien & proyek, akta, fasilitas bank) dengan kutipan bukti dan nomor berita.',
+  goDossier: 'Dossier korporasi 4 bagian (pemilik & pengendali, klien & proyek, akta, fasilitas bank) dengan kutipan dan nomor berita.',
   goRescore: "Tanpa AI. Menghitung ulang 'menyebut nama perusahaan' dari isi artikel dan mengosongkan tag risiko/dampak hasil kata kunci lama pada berita yang belum dinilai AI.",
 };
 
@@ -42,6 +42,7 @@ function parseLine(text: string, cls?: string): Line {
 export default function JobsView() {
   const [companies, setCompanies] = useState<{ id: string; ticker?: string; name: string }[]>([]);
   const [companyId, setCompanyId] = useState('');
+  const [forceAna, setForceAna] = useState(false);
   const [list, setList] = useState<Job[]>([]);
   const [view, setView] = useState<Job | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -104,7 +105,7 @@ export default function JobsView() {
       const cfg = await (await fetch('/api/config')).json();
       cmap.current = Object.fromEntries(cfg.companies.map((c: any) => [c.id, c.ticker || c.name]));
       setCompanies(cfg.companies);
-      setCompanyId(cfg.companies[0]?.id || '');
+      setCompanyId('');
       const jobs: Job[] = await (await fetch('/api/jobs')).json();
       const cur = jobs.find((j) => ACTIVE.includes(j.status)) || jobs[0];
       if (cur) { ctl.current.jobId = cur.id; setJobId(cur.id); }
@@ -156,6 +157,7 @@ export default function JobsView() {
     const busy = activeJobs.length > 0 && (held.includes('db') || need.includes('db') || need.some((l) => held.includes(l)));
     return { disabled: busy, title: busy ? (held.includes('db') || need.includes('db') ? 'Pemeliharaan data harus berjalan sendiri' : 'Jalur ini sedang dipakai job lain') : BTN_TITLE[id] || '' };
   };
+  const scope = () => (companyId ? { companies: [companyId] } : {});      // satu pilihan perusahaan berlaku untuk semua tombol
   const B = (id: string, extra?: { className?: string }) => ({ id, disabled: laneState(id).disabled, title: laneState(id).title, className: 'btn' + (extra?.className ? ' ' + extra.className : '') });
 
   // ----- turunan tampilan untuk job yang sedang dilihat -----
@@ -210,32 +212,36 @@ export default function JobsView() {
         <div className="cols">
           <div>
             <h2>Panel kontrol</h2>
-            <div className="panel">
-              <h3>1. Full pipeline satuan (per perusahaan)</h3>
-              <p>Satu perusahaan sekali jalan, berurutan: data keuangan → cari berita → unmask + ambil isi &amp; gambar artikel → klasifikasi AI → rating risiko → analisis AI → dossier.</p>
+            <div className="panel scope">
+              <h3>Perusahaan yang diproses</h3>
               <select id="company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+                <option value="">{'Semua perusahaan (' + companies.length + ')'}</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{(c.ticker ? c.ticker + ' · ' : '') + c.name}</option>)}
               </select>
-              <button {...B('goOne', { className: 'pri' })} onClick={() => start('portfolio', { companies: [companyId] })}>▶ Mulai full pipeline perusahaan terpilih</button>
+              <p className="note-s">Berlaku untuk <b>semua tombol</b> di bawah. Pilih satu perusahaan, atau biarkan "Semua perusahaan" (diproses satu per satu dengan jeda supaya sumber tidak membatasi akses).</p>
             </div>
             <div className="panel">
-              <h3>2. Full pipeline (semua perusahaan)</h3>
-              <p>Semua perusahaan satu per satu dengan urutan langkah yang sama seperti di atas, dengan jeda antar perusahaan supaya sumber tidak membatasi akses. Berjalan di background.</p>
-              <button {...B('goAll', { className: 'pri' })} onClick={() => start('portfolio', {})}>▶ Mulai full pipeline semua perusahaan</button>
-              <button {...B('goAllRaw')} onClick={() => start('portfolio', { classify: false, analysis: false })}>▷ Pipeline tanpa AI (AI menyusul)</button>
+              <h3>Full pipeline <span className="chip ai">AI</span><span className="chip net">ambil data baru</span></h3>
+              <p>Mencari berita terbaru lalu memprosesnya sampai selesai, berurutan: data keuangan → cari berita → saring duplikat → unmask + ambil isi &amp; gambar → klasifikasi AI → rating risiko → analisis AI → dossier.</p>
+              <p className="note-s">Analisis AI dan dossier dibuat ulang <b>seminggu sekali</b> (dilewati bila yang ada masih kurang dari 7 hari).</p>
+              <button {...B('goPipeline', { className: 'pri' })} onClick={() => start('portfolio', { ...scope(), ...(forceAna ? { forceAnalysis: true } : {}) })}>▶ Jalankan full pipeline</button>
+              <button {...B('goPipelineRaw')} onClick={() => start('portfolio', { ...scope(), classify: false, analysis: false })}>▷ Tanpa AI (hanya ambil dan simpan berita)</button>
+              <label className="chk"><input type="checkbox" id="forceAna" checked={forceAna} onChange={(e) => setForceAna(e.target.checked)} /> Paksa buat ulang analisis AI dan dossier (abaikan jadwal mingguan)</label>
             </div>
             <div className="panel">
-              <h3>3. Lengkapi data tersimpan</h3>
-              <p>Untuk data yang diambil sebelum langkah-langkah di atas ada. Tanpa crawl ulang: per perusahaan menjalankan <b>isi &amp; gambar → klasifikasi AI → analisis AI → dossier</b> dengan urutan yang sama seperti crawl. Maks. 300 berita per perusahaan sekali jalan; jalankan lagi bila masih ada sisa.</p>
-              <button {...B('goBackfillOne', { className: 'pri' })} onClick={() => start('backfill', { companies: [companyId] })}>▶ Lengkapi perusahaan terpilih (pilihan di panel 1)</button>
-              <button {...B('goBackfill')} onClick={() => start('backfill', {})}>▶ Lengkapi semua perusahaan</button>
-              <h4 className="sub">Langkah terpisah</h4>
-              <button {...B('goContent')} onClick={() => start('content', {})}>1 · Unmask + ambil isi &amp; gambar artikel</button>
-              <button {...B('goReclass')} onClick={() => start('reclassify', {})}>2 · Klasifikasi AI ulang</button>
-              <button {...B('goAnalysis')} onClick={() => start('analysis', {})}>3 · Buat ulang analisis AI semua perusahaan</button>
-              <button className="btn" id="goDossier" title={BTN_TITLE.goDossier} onClick={() => start('dossier', {})}>4 · Buat dossier korporasi semua perusahaan</button>
-              <button {...B('goFin')} onClick={() => start('financial', {})}>Perbarui data keuangan semua emiten</button>
-              <button {...B('goRescore')} onClick={() => start('rescore', {})}>Hitung ulang keterkaitan nama (tanpa AI)</button>
+              <h3>Lengkapi data tersimpan <span className="chip ai">AI</span></h3>
+              <p>Untuk berita yang <b>sudah ada</b> di database, tanpa mencari berita baru: unmask + isi &amp; gambar → klasifikasi AI → analisis AI → dossier (analisis dan dossier mengikuti jadwal mingguan yang sama). Maksimal 300 berita per perusahaan sekali jalan; jalankan lagi bila masih ada sisa.</p>
+              <button {...B('goBackfill', { className: 'pri' })} onClick={() => start('backfill', { ...scope(), ...(forceAna ? { forceAnalysis: true } : {}) })}>▶ Lengkapi data tersimpan</button>
+            </div>
+            <div className="panel">
+              <h3>Langkah satuan</h3>
+              <p>Menjalankan satu langkah saja. Tombol analisis dan dossier di sini <b>selalu membuat ulang</b>, tanpa menunggu jadwal mingguan.</p>
+              <div className="step"><button {...B('goContent')} onClick={() => start('content', scope())}>Unmask + ambil isi &amp; gambar artikel</button><small><span className="chip net">tanpa AI</span> mencari alamat asli artikel lalu mengunduh isi dan gambarnya</small></div>
+              <div className="step"><button {...B('goReclass')} onClick={() => start('reclassify', scope())}>Klasifikasi AI</button><small><span className="chip ai">AI</span> menilai berita yang belum dinilai atau berformat lama (peran perusahaan, dampak, temuan risiko)</small></div>
+              <div className="step"><button {...B('goAnalysis')} onClick={() => start('analysis', scope())}>Analisis AI</button><small><span className="chip ai">AI</span> membuat ulang analisis per perusahaan</small></div>
+              <div className="step"><button {...B('goDossier')} onClick={() => start('dossier', scope())}>Dossier korporasi</button><small><span className="chip ai">AI</span> membuat ulang dossier 4 bagian dari berita tersimpan</small></div>
+              <div className="step"><button {...B('goFin')} onClick={() => start('financial', scope())}>Data keuangan emiten</button><small><span className="chip net">tanpa AI</span> harga dan laporan keuangan (hanya perusahaan terbuka)</small></div>
+              <div className="step"><button {...B('goRescore')} onClick={() => start('rescore', scope())}>Hitung ulang keterkaitan nama</button><small><span className="chip net">tanpa AI</span> mencocokkan nama perusahaan dengan isi berita; cepat</small></div>
             </div>
           </div>
 

@@ -114,7 +114,7 @@ export default function Explorer({ feedKey, company, lead, chips }: { feedKey: s
   for (const [k] of PILL_GROUPS) if (st[k]) act.push([k, LBL[k][st[k]] || st[k]]);
   if (st.riskMin) act.push(['riskMin', LBL.riskMin[st.riskMin] || 'Risiko ≥ ' + st.riskMin]);
   if (st.source) act.push(['source', 'Sumber: ' + st.source]);
-  if (st.days !== '30') act.push(['days', (DAYS_OPTS.find((d) => d[0] === st.days) || ['', st.days])[1]]);
+  if (st.days !== '7') act.push(['days', (DAYS_OPTS.find((d) => d[0] === st.days) || ['', st.days])[1]]);
 
   const onPick = (k: string, v: string) => set(k as keyof FeedState, String((st as unknown as Record<string, string>)[k]) === v ? '' : v);
   const srcList: [string, string][] = [['', 'Semua sumber'], ...Object.entries(facets.source || {}).map(([d, n]) => [d, d + ' (' + n + ')'] as [string, string])];
@@ -141,7 +141,12 @@ export default function Explorer({ feedKey, company, lead, chips }: { feedKey: s
   if (!first.length) {
     list = (
       <div className="empty"><b>Tidak ada berita yang cocok</b>
-        {act.length ? <>Filter terlalu ketat atau belum ada data untuk pilihan ini.<div style={{ marginTop: 12 }}><button className="btn" id="freset2" type="button" onClick={() => resetFeed(feedKey)}>Reset semua filter</button></div></>
+        {act.length || st.days !== '0' ? <>
+          {st.days !== '0' ? 'Tidak ada hasil di ' + ((DAYS_OPTS.find((d) => d[0] === st.days) || ['', st.days])[1] || '').toLowerCase() + '. Coba di semua rentang waktu.' : 'Filter terlalu ketat atau belum ada data untuk pilihan ini.'}
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {st.days !== '0' ? <button className="btn" id="fwide" type="button" onClick={() => set('days', '0')}>Coba di semua rentang waktu</button> : null}
+            {act.length ? <button className="btn" id="freset2" type="button" onClick={() => resetFeed(feedKey)}>Reset semua filter</button> : null}
+          </div></>
           : 'Belum ada berita tersimpan. Jalankan crawl di Task Runner.'}
       </div>
     );
@@ -193,7 +198,7 @@ export default function Explorer({ feedKey, company, lead, chips }: { feedKey: s
       </div>
       {act.length > 0 && (
         <div className="active">
-          {act.map(([k, t]) => <button key={k} type="button" className="achip" data-x={k} title="Lepas filter" onClick={() => set(k as keyof FeedState, k === 'days' ? '30' : '')}>{t} <b>✕</b></button>)}
+          {act.map(([k, t]) => <button key={k} type="button" className="achip" data-x={k} title="Lepas filter" onClick={() => set(k as keyof FeedState, k === 'days' ? '7' : '')}>{t} <b>✕</b></button>)}
           <button type="button" className="alink" id="freset" onClick={() => resetFeed(feedKey)}>Reset semua</button>
         </div>
       )}

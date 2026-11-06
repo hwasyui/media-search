@@ -41,7 +41,7 @@ function PrivateProfile({ c, counts }: { c: Company; counts: Record<string, numb
   return (
     <>
       <div className="eyebrow" style={{ margin: '0 0 8px' }}>STATUS PROFIL · PERUSAHAAN TERTUTUP</div>
-      <div className="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan{(c.aliases || []).length ? ' + ' + c.aliases!.length + ' alias' : ''}{sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + sh.slice(0, 3).map((x) => x.name).join(', ') + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>{counts.all}</b> berita 30 hari.</span></div>
+      <div className="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan{(c.aliases || []).length ? ' + ' + c.aliases!.length + ' alias' : ''}{sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + sh.slice(0, 3).map((x) => x.name).join(', ') + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>{counts.all}</b> berita 7 hari.</span></div>
       <div className="pf-row"><b>Tidak tersedia</b><span>Harga saham dan laporan keuangan publik. Rating hanya mencerminkan berita, bukan kondisi keuangan.</span></div>
       <div className="pf-row"><b>Perlu dilengkapi analis</b><span>Akta &amp; SK Kemenkumham (AHU), laporan keuangan audit, SLIK{sh.length ? '' : <>; <span className="down">nama pengurus/pemegang saham belum diisi, sehingga berita lewat mereka belum terpantau</span></>}.</span></div>
     </>

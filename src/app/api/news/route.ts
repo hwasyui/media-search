@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   try {
     const q = query(req);
     const f = {
-      company: q.company, filter: q.filter || 'all', q: q.q, days: q.days === undefined ? 30 : Number(q.days), platform: q.platform, kind: q.kind, tier: q.tier,
+      company: q.company, filter: q.filter || 'all', q: q.q, days: q.days === undefined ? 7 : Number(q.days), platform: q.platform, kind: q.kind, tier: q.tier,
       impact: q.impact, category: q.category, sentiment: q.sentiment, riskMin: q.risk_min, riskCat: q.risk_cat, related: q.related, ai: q.ai, source: q.source, raw: layerOf(q),
     };
     const [items, counts, total, platforms] = await Promise.all([
