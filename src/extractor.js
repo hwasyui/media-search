@@ -160,6 +160,95 @@ export function pickImage(html, baseUrl) {
   return null;
 }
 
+// Ekstraksi paragraf dari payload Next.js SSR (__NEXT_DATA__) bila tersedia
+function extractNextDataParas(html) {
+  const match = html.match(/<script\b[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) return [];
+
+  let parsed;
+  try {
+    parsed = JSON.parse(match[1]);
+  } catch {
+    return [];
+  }
+
+  const pageProps = parsed?.props?.pageProps;
+  if (!pageProps || typeof pageProps !== 'object') return [];
+
+  const candidates = [];
+  function cleanPara(p) {
+    if (typeof p !== 'string') return '';
+    return p.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function addCandidate(raw) {
+    if (!raw) return;
+    let paras = [];
+    if (typeof raw === 'string') {
+      if (raw.length < 200) return;
+      if (/<(?:p|br|div)\b/i.test(raw)) {
+        const formatted = ('<p>' + raw + '</p>')
+          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '</p><p>')
+          .replace(/<p\b([^>]*)>/gi, '</p><p$1>')
+          .replace(/<\/p>/gi, '</p>\n');
+        const pRegex = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+        let m;
+        while ((m = pRegex.exec(formatted)) !== null) {
+          const cp = cleanPara(m[1]);
+          if (cp.length >= 35 && !/^(baca juga|simak juga|baca disini|baca artikel|advertisement|halaman selanjutnya)/i.test(cp)) {
+            paras.push(cp);
+          }
+        }
+      } else {
+        paras = raw
+          .split(/\r?\n\s*\r?\n|\r?\n/)
+          .map(cleanPara)
+          .filter(p => p.length >= 35 && !/^(baca juga|simak juga|baca disini|baca artikel|advertisement|halaman selanjutnya)/i.test(p));
+      }
+    } else if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string') {
+          const cp = cleanPara(item);
+          if (cp.length >= 35) paras.push(cp);
+        } else if (item && typeof item === 'object') {
+          const val = item.value || item.text || item.content || item.body;
+          if (typeof val === 'string') {
+            const cp = cleanPara(val);
+            if (cp.length >= 35) paras.push(cp);
+          }
+        }
+      }
+    }
+
+    if (paras.length >= 2) {
+      candidates.push(paras);
+    }
+  }
+
+  const KEY_REGEX = /^(articleBody|content|body|content_html|detail|article_content|article_body|story|text|full_content|post_content|description|isi_berita|news_content)$/i;
+
+  function walk(node, depth = 0) {
+    if (!node || depth > 6 || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    for (const [key, val] of Object.entries(node)) {
+      if (KEY_REGEX.test(key)) {
+        addCandidate(val);
+      }
+      if (val && typeof val === 'object') {
+        walk(val, depth + 1);
+      }
+    }
+  }
+
+  walk(pageProps);
+  if (!candidates.length) return [];
+  candidates.sort((a, b) => b.join(' ').length - a.join(' ').length);
+  return candidates[0];
+}
+
 // Ekstraksi paragraf bersih dari halaman artikel berita
 function extractArticleBody(html) {
   // 1. Cek kandidat dari JSON-LD articleBody
@@ -186,7 +275,10 @@ function extractArticleBody(html) {
     } catch { /* JSON-LD rusak: abaikan */ }
   }
 
-  // 2. Ekstraksi dari DOM HTML dengan normalisasi tag
+  // 2. Cek kandidat dari payload SSR Next.js (__NEXT_DATA__)
+  const nextDataParas = extractNextDataParas(html);
+
+  // 3. Ekstraksi dari DOM HTML dengan normalisasi tag
   let cleanHtml = html
     .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
@@ -219,15 +311,16 @@ function extractArticleBody(html) {
     return res;
   }
 
-  // Ekstraksi paragraf dari kontainer & global
+  // Ekstraksi paragraf dari kontainer & global DOM
   const globalParas = getParagraphsFromScope(cleanHtml);
   let paras = globalParas;
 
-  // Bandingkan dengan hasil JSON-LD: pilih yang paling utuh/banyak teksnya
-  const domText = paras.join(' ');
-  const jsonLdText = jsonLdParas.join(' ');
-  if (jsonLdParas.length >= 2 && jsonLdText.length > domText.length) {
+  // Bandingkan kandidat: pilih yang paling utuh/banyak teksnya
+  if (jsonLdParas.length >= 2 && jsonLdParas.join(' ').length > paras.join(' ').length) {
     paras = jsonLdParas;
+  }
+  if (nextDataParas.length >= 2 && nextDataParas.join(' ').length > paras.join(' ').length) {
+    paras = nextDataParas;
   }
 
   const fullText = paras.join('\n\n').slice(0, 3000);

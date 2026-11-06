@@ -12,7 +12,7 @@ const NW_MOD = { none: 'Polos (nama saja)', isu: 'Isu / kabar', viral: 'Viral', 
 const NW_KIND = { resmi: 'Resmi', berita: 'Berita', persepsi_publik: 'Persepsi publik', konsumen: 'Konten konsumen (disaring)' };
 const NW_PLAT = { berita: 'Media massa', blog: 'Blog & forum', sosmed: 'Media sosial', video: 'Video', resmi: 'Sumber resmi' };
 const NW_TIER = { official: 'Sumber resmi (instansi/bursa)', mainstream: 'Media massa / situs berita umum', corporate: 'Situs perusahaan / komersial', aggregator: 'Agregator / non-redaksi', social_forum: 'Media sosial / forum' };
-const NW_INFO = { fakta: 'Fakta (ditulis sebagai fakta oleh sumbernya)', rumor: 'Rumor (belum terverifikasi)', opini: 'Opini / keluhan', tidak_jelas: 'Belum jelas' };
+const NW_INFO = { fakta: 'Fakta', rumor: 'Rumor', opini: 'Opini / keluhan', tidak_jelas: 'Belum jelas' };
 const NW_SENT = { positif: 'Positif', netral: 'Netral', negatif: 'Negatif' };
 const AI_MINI = '<span class="ai-mini" title="Dihasilkan oleh AI yang membaca isi artikel">✦ AI</span>';
 const fmtDT = (v) => (v ? new Date(v).toLocaleString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
@@ -30,10 +30,10 @@ function nwSafeBody(html) {
 function linkStatus(d) {
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return '–'; } };
   const google = /^https:\/\/news\.google\.com\//.test(d.url || '');
-  if (d.article_url && d.content_html) return '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membuka artikel di ' + esc(host(d.article_url)) + ' dan membaca isinya. Ini hanya menunjukkan tautannya hidup, bukan bahwa isinya benar.';
+  if (d.article_url && d.content_html) return '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membuka artikel di ' + esc(host(d.article_url)) + ' dan membaca isinya.';
   if (d.article_url) return '<span class="tag t-amber">Alamat asli ditemukan</span> ' + esc(host(d.article_url)) + (d.link_error === 'isi_tidak_terbaca' || !d.content_html ? ', tetapi isinya belum berhasil dibaca (situs menolak akses, berbayar, atau tanpa teks).' : '.');
   if (google) return '<span class="tag t-amber">Belum dibuka</span> ini tautan pengalihan Google News. ' + (d.link_error === 'decode_429' ? 'Alamat penerbit belum bisa dicari karena Google sedang membatasi permintaan; dicoba lagi saat Anda menekan "Baca artikel asli" atau lewat "Lengkapi data tersimpan".' : d.link_error === 'decode_gagal' ? 'Tautan ini tidak dapat didekode.' : 'Alamat penerbitnya dicari saat Anda menekan "Baca artikel asli".');
-  return d.content_html ? '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membaca isinya (bukan jaminan isinya benar).' : '<span class="tag t-amber">Belum dibuka</span> isi artikel belum berhasil dibaca.';
+  return d.content_html ? '<span class="tag t-green">Tautan bisa dibuka</span> sistem berhasil membaca isinya.' : '<span class="tag t-amber">Belum dibuka</span> isi artikel belum berhasil dibaca.';
 }
 
 // Tiga lapis data: MENTAH (semua hasil crawl) -> CLEANED (alamat penerbit valid, bukan konten konsumen) -> RELEVAN (dinilai AI relevan).

@@ -313,7 +313,7 @@
         <input id="q" autocomplete="off" placeholder="Cari perusahaan, ticker (BBCA, GOTO), atau kata kunci berita…">
         <div class="sugg" id="sugg"></div>
       </div>
-      <label class="fc" style="height:38px;border-radius:10px" title="Lapis data berita yang ditampilkan::Relevan = dinilai AI relevan (default). Cleaned = alamat penerbit valid, bukan konten konsumen. Mentah = semua hasil crawl."><span>Lapis</span>
+      <label class="fc" style="height:38px;border-radius:10px" title="Lapis data berita yang ditampilkan::Relevan (bawaan): berita yang dinilai AI memang membahas perusahaan dan isinya cukup panjang. Cleaned: alamat asli artikel di situs penerbit sudah ketemu dan isinya bukan tutorial, promo, atau lowongan; belum tentu terkait perusahaan. Mentah: semua hasil crawl."><span>Lapis</span>
         <select id="layerSel"><option value="relevan">Relevan</option><option value="cleaned">Cleaned</option><option value="mentah">Mentah</option></select></label>
       <button class="btn" id="addCo" title="Tambah perusahaan klien (debitur)">＋ Perusahaan</button>
       <button class="btn" id="startTour" title="Tur fitur::Robot AI memandu Anda melihat fitur-fitur utama langkah demi langkah, dengan suara.">▶ Tur</button>
@@ -503,7 +503,7 @@ function tabsHtml(counts, current, attr) {
 function privateProfile(c, counts) {
   const sh = (c.stakeholders || []).filter((x) => x.name);
   return `<div class="eyebrow" style="margin:0 0 8px">STATUS PROFIL · PERUSAHAAN TERTUTUP</div>
-    <div class="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan${(c.aliases || []).length ? ' + ' + c.aliases.length + ' alias' : ''}${sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + esc(sh.slice(0, 3).map((x) => x.name).join(', ')) + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>${counts.all}</b> berita 30 hari.</span></div>
+    <div class="pf-row"><b>Dipantau lewat berita</b><span>Nama perusahaan${(c.aliases || []).length ? ' + ' + c.aliases.length + ' alias' : ''}${sh.length ? ' dan ' + sh.length + ' pemangku kepentingan (' + esc(sh.slice(0, 3).map((x) => x.name).join(', ')) + (sh.length > 3 ? ', …' : '') + ')' : ''}. Saat ini <b>${counts.all}</b> berita 7 hari.</span></div>
     <div class="pf-row"><b>Tidak tersedia</b><span>Harga saham dan laporan keuangan publik. Rating hanya mencerminkan berita, bukan kondisi keuangan.</span></div>
     <div class="pf-row"><b>Perlu dilengkapi analis</b><span>Akta &amp; SK Kemenkumham (AHU), laporan keuangan audit, SLIK${sh.length ? '' : '; <span class="down">nama pengurus/pemegang saham belum diisi, sehingga berita lewat mereka belum terpantau</span>'}.</span></div>`;
 }

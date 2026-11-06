@@ -27,6 +27,11 @@
   .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
   .btn.pri:hover:not(:disabled){filter:brightness(1.1)}
   .btn+.btn{margin-top:8px}
+  .panel .note-s{font-size:12.5px;color:var(--muted);line-height:1.55;margin:6px 0 10px}
+  .chip{display:inline-block;font:700 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;margin-left:6px;border:1px solid var(--line);vertical-align:middle;color:var(--muted)}
+  .chip.ai{color:#b79cff;border-color:#4a3d7a} .chip.net{color:#7db3ff;border-color:#2c4469}
+  .panel .chk{display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:12.5px;color:var(--muted);line-height:1.45;cursor:pointer} .panel .chk input{margin-top:2px}
+  .panel .step{margin:0 0 10px} .panel .step small{display:block;margin-top:4px;font-size:12px;color:var(--muted);line-height:1.5} .panel .step small .chip{margin:0 6px 0 0}
   .panel h4.sub{font-size:11px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin:16px 0 8px}
   .btn.warn{border-color:#5a3a3a;color:#f1a5a5}
   .term{background:#000;border:1px solid var(--line);display:flex;flex-direction:column;min-height:520px}
@@ -94,30 +99,33 @@
   <div class="cols">
     <div>
       <h2>Panel kontrol</h2>
-      <div class="panel">
-        <h3>1. Full pipeline satuan (per perusahaan)</h3>
-        <p>Satu perusahaan sekali jalan, berurutan: data keuangan → cari berita → unmask + ambil isi &amp; gambar artikel → klasifikasi AI → rating risiko → analisis AI → dossier.</p>
+      <div class="panel scope">
+        <h3>Perusahaan yang diproses</h3>
         <select id="company"></select>
-        <button class="btn pri" id="goOne">▶ Mulai full pipeline perusahaan terpilih</button>
+        <p class="note-s">Berlaku untuk <b>semua tombol</b> di bawah. Pilih satu perusahaan, atau biarkan "Semua perusahaan" (diproses satu per satu dengan jeda supaya sumber tidak membatasi akses).</p>
       </div>
       <div class="panel">
-        <h3>2. Full pipeline (semua perusahaan)</h3>
-        <p>Semua perusahaan satu per satu dengan urutan langkah yang sama seperti di atas, dengan jeda antar perusahaan supaya sumber tidak membatasi akses. Berjalan di background.</p>
-        <button class="btn pri" id="goAll">▶ Mulai full pipeline semua perusahaan</button>
-        <button class="btn" id="goAllRaw" title="Hanya mengambil dan menyimpan data mentah; AI bisa dijalankan terpisah dan bersamaan">▷ Pipeline tanpa AI (AI menyusul)</button>
+        <h3>Full pipeline <span class="chip ai">AI</span><span class="chip net">ambil data baru</span></h3>
+        <p>Mencari berita terbaru lalu memprosesnya sampai selesai, berurutan: data keuangan → cari berita → saring duplikat → unmask + ambil isi &amp; gambar → klasifikasi AI → rating risiko → analisis AI → dossier.</p>
+        <p class="note-s">Analisis AI dan dossier dibuat ulang <b>seminggu sekali</b> (dilewati bila yang ada masih kurang dari 7 hari).</p>
+        <button class="btn pri" id="goPipeline">▶ Jalankan full pipeline</button>
+        <button class="btn" id="goPipelineRaw" title="Hanya mencari dan menyimpan berita mentah; langkah AI bisa dijalankan terpisah sesudahnya.">▷ Tanpa AI (hanya ambil dan simpan berita)</button>
+        <label class="chk"><input type="checkbox" id="forceAna"> Paksa buat ulang analisis AI dan dossier (abaikan jadwal mingguan)</label>
       </div>
       <div class="panel">
-        <h3>3. Lengkapi data tersimpan</h3>
-        <p>Untuk data yang diambil sebelum langkah-langkah di atas ada. Tanpa crawl ulang: per perusahaan menjalankan <b>isi &amp; gambar → klasifikasi AI → analisis AI → dossier</b> dengan urutan yang sama seperti crawl. Maks. 300 berita per perusahaan sekali jalan; jalankan lagi bila masih ada sisa.</p>
-        <button class="btn pri" id="goBackfillOne">▶ Lengkapi perusahaan terpilih (pilihan di panel 1)</button>
-        <button class="btn" id="goBackfill">▶ Lengkapi semua perusahaan</button>
-        <h4 class="sub">Langkah terpisah</h4>
-        <button class="btn" id="goContent" title="Dua hal sekaligus: (1) unmask tautan Google News ke alamat asli penerbit (disimpan di article_url), (2) satu kali unduh per artikel untuk isi (body HTML) dan gambar pratinjau. Ikut mencoba lagi yang gagal sebelumnya. AI tidak boleh berjalan bersamaan.">1 · Unmask + ambil isi &amp; gambar artikel</button>
-        <button class="btn" id="goReclass" title="AI membaca isi artikel dan menilai berita yang belum dinilai atau formatnya lama.">2 · Klasifikasi AI ulang</button>
-        <button class="btn" id="goAnalysis">3 · Buat ulang analisis AI semua perusahaan</button>
-        <button class="btn" id="goDossier" title="Dossier korporasi 4 bagian (pemilik &amp; pengendali, klien &amp; proyek, akta, fasilitas bank) dengan kutipan bukti dan nomor berita.">4 · Buat dossier korporasi semua perusahaan</button>
-        <button class="btn" id="goFin">Perbarui data keuangan semua emiten</button>
-        <button class="btn" id="goRescore" title="Tanpa AI. Menghitung ulang 'menyebut nama perusahaan' dari isi artikel dan mengosongkan tag risiko/dampak hasil kata kunci lama pada berita yang belum dinilai AI.">Hitung ulang keterkaitan nama (tanpa AI)</button>
+        <h3>Lengkapi data tersimpan <span class="chip ai">AI</span></h3>
+        <p>Untuk berita yang <b>sudah ada</b> di database, tanpa mencari berita baru: unmask + isi &amp; gambar → klasifikasi AI → analisis AI → dossier (analisis dan dossier mengikuti jadwal mingguan yang sama). Maksimal 300 berita per perusahaan sekali jalan; jalankan lagi bila masih ada sisa.</p>
+        <button class="btn pri" id="goBackfill">▶ Lengkapi data tersimpan</button>
+      </div>
+      <div class="panel">
+        <h3>Langkah satuan</h3>
+        <p>Menjalankan satu langkah saja. Tombol analisis dan dossier di sini <b>selalu membuat ulang</b>, tanpa menunggu jadwal mingguan.</p>
+        <div class="step"><button class="btn" id="goContent" title="Dua hal sekaligus: (1) unmask tautan Google News ke alamat asli penerbit (disimpan di article_url), (2) satu kali unduh per artikel untuk isi dan gambar pratinjau. Ikut mencoba lagi yang gagal sebelumnya. AI tidak boleh berjalan bersamaan.">Unmask + ambil isi &amp; gambar artikel</button><small><span class="chip net">tanpa AI</span> mencari alamat asli artikel lalu mengunduh isi dan gambarnya</small></div>
+        <div class="step"><button class="btn" id="goReclass" title="AI membaca isi artikel dan menilai berita yang belum dinilai atau formatnya lama.">Klasifikasi AI</button><small><span class="chip ai">AI</span> menilai berita yang belum dinilai atau berformat lama (peran perusahaan, dampak, temuan risiko)</small></div>
+        <div class="step"><button class="btn" id="goAnalysis">Analisis AI</button><small><span class="chip ai">AI</span> membuat ulang analisis per perusahaan</small></div>
+        <div class="step"><button class="btn" id="goDossier" title="Dossier korporasi 4 bagian (pemilik &amp; pengendali, klien &amp; proyek, akta, fasilitas bank) dengan kutipan dan nomor berita.">Dossier korporasi</button><small><span class="chip ai">AI</span> membuat ulang dossier 4 bagian dari berita tersimpan</small></div>
+        <div class="step"><button class="btn" id="goFin">Data keuangan emiten</button><small><span class="chip net">tanpa AI</span> harga dan laporan keuangan (hanya perusahaan terbuka)</small></div>
+        <div class="step"><button class="btn" id="goRescore" title="Menghitung ulang 'menyebut nama perusahaan' dari isi artikel dan mengosongkan tag risiko/dampak hasil kata kunci lama pada berita yang belum dinilai AI.">Hitung ulang keterkaitan nama</button><small><span class="chip net">tanpa AI</span> mencocokkan nama perusahaan dengan isi berita; cepat</small></div>
       </div>
     </div>
 
@@ -148,11 +156,11 @@
         <details><summary><b>2. Clean + dedup</b><span class="sub">tanpa AI, dijalankan sekali setelah semua work selesai</span></summary><div class="st-b">Dikerjakan <code>cleanItems</code> pada seluruh hasil lintas work: (a) <b>invalid</b>: tautan kosong, atau judul+cuplikan kurang dari 25 karakter, atau cuplikan "balasan mode AI / AI overview"; (b) <b>spam</b>: cocok daftar kata judi/pinjol/slot; (c) <b>duplikat tautan</b>: tautan dinormalkan dulu (buang <code>#hash</code>, parameter <code>utm_*</code>/<code>fbclid</code>/<code>gclid</code>, awalan <code>www.</code>/<code>m.</code>, garis miring akhir) lalu yang sama digabung dan kata kunci/jejak penemuannya dicatat; (d) <b>duplikat mirip</b>: judul+cuplikan dipecah jadi kata (&gt;2 huruf) dan yang kemiripan Jaccard-nya di atas 0,8 digabung, dengan mempertahankan yang penerbitnya lebih kredibel (domain dibaca dari sumber RSS atau tautannya). Bagian "clean: X/Y lolos" di log adalah hasil tahap ini.</div></details>
         <details><summary><b>3. Ekstraksi isi</b><span class="sub">alamat penerbit + isi artikel/caption</span></summary><div class="st-b">Untuk tiap berita: (a) <b>unmask</b> tautan Google News ke alamat asli penerbit (cari di Bing News menurut judul dan domain, lalu pendekode Google, lalu cari ulang judul di Google News RSS); hasil pencarian Google tidak dianggap alamat penerbit; (b) bila artikel yang sama (alamat penerbit sama) sudah diambil untuk perusahaan lain, isi dan gambarnya <b>disalin</b> dari sana tanpa mengunduh ulang; (c) selain itu <b>ekstraktor</b> mengunduh halaman dan mengambil teks per paragraf, gambar pratinjau, dan caption (YouTube/Instagram/dll.); headless browser hanya cadangan terakhir. Berita yang alamat penerbitnya tidak ketemu tetap disimpan sebagai data mentah, tapi tidak dikirim ke AI.</div></details>
         <details><summary><b>4. Simpan (data mentah)</b><span class="sub">tabel news_items</span></summary><div class="st-b">Disimpan sebelum AI jalan. <code>url_hash</code> = SHA-1 dari tautan awal yang sudah dinormalkan, unik per perusahaan, sehingga berita yang sama tidak masuk dua kali walau alamat penerbitnya berubah. Judul yang sama atau mirip juga dibuang (<code>title_hash</code> untuk judul persis, kemiripan kata untuk judul mirip dalam 21 hari terakhir), tetapi <b>yang dipertahankan adalah penerbit paling kredibel</b>: bila versi baru berasal dari penerbit dengan skor lebih tinggi (mis. media massa menggantikan forum), berita lama diganti dan hitungan "terlihat"-nya digabung; bila skornya sama atau lebih rendah, yang lama tetap dan yang baru dibuang. Duplikat yang ditolak atau digantikan <b>tidak hilang</b>: dicatat di tabel <code>news_also</code> milik berita yang bertahan (domain, tautan, judul versi mereka, jenis sumber, skor, waktu terlihat; maksimal 30), dan tampil di modal berita sebagai "Juga dimuat di N media". Berita yang sama untuk perusahaan berbeda tetap disimpan per perusahaan. Disimpan pula: <code>found_url</code> (tautan penemuan), <code>article_url</code> (alamat penerbit), isi HTML, jenis sumber dan skor kredibilitas (dari domain, bukan AI), deteksi konten buatan pengguna, dan keterkaitan nama perusahaan.</div></details>
-        <details><summary><b>5. Lapis data</b><span class="sub">kolom stage, dihitung otomatis oleh MySQL</span></summary><div class="st-b"><b>Mentah (0)</b>: alamat penerbit belum ada, atau konten konsumen. <b>Cleaned (1)</b>: alamat penerbit valid dan bukan konten konsumen. <b>Relevan (2)</b>: cleaned + AI menilai relevan dengan format baru (peran perusahaan terisi; hasil AI lama harus dinilai ulang) (atau belum dinilai AI tetapi teksnya menyebut nama perusahaan) + isi cukup panjang (berita/resmi/blog minimal 500 karakter teks, caption sosmed/video/persepsi publik minimal 80). Lapis yang tampil dipilih di pemilih <b>Lapis</b> di portal.</div></details>
+        <details><summary><b>5. Lapis data</b><span class="sub">kolom stage, dihitung otomatis oleh MySQL</span></summary><div class="st-b"><b>Mentah (0)</b>: alamat asli artikel belum ketemu, atau isinya tutorial/promo/lowongan. <b>Cleaned (1)</b>: alamat asli artikel sudah ketemu dan isinya bukan tutorial/promo/lowongan. <b>Relevan (2)</b>: cleaned + AI menilai relevan dengan format baru (peran perusahaan terisi; hasil AI lama harus dinilai ulang) (atau belum dinilai AI tetapi teksnya menyebut nama perusahaan) + isi cukup panjang (berita/resmi/blog minimal 500 karakter teks, caption sosmed/video/persepsi publik minimal 80). Lapis yang tampil dipilih di pemilih <b>Lapis</b> di portal.</div></details>
         <details><summary><b>6. Klasifikasi AI</b><span class="sub">Groq/Gemini, per batch</span></summary><div class="st-b">Hanya berita yang sudah punya alamat penerbit dan belum lengkap terklasifikasi (yang lengkap dilewati). Dikirim per batch 8 item; per item judul + isi dipotong 2.000 karakter. AI mengisi: relevan atau tidak, peran perusahaan, kategori, fakta/rumor/opini, sentimen, dampak, temuan risiko dengan kutipan bukti, ringkasan. Hasil disimpan per batch, jadi job yang terputus tidak kehilangan batch yang sudah selesai.<br><b>AI work:</b> seperti crawl, berita yang perlu AI dibagi menjadi beberapa <b>AI work</b> (di log tertulis <code>ai-work1/5</code>), masing-masing berisi 60 berita = sekitar 8 batch × 8 berita. Antar AI work ada jeda 3 detik supaya kuota Groq/Gemini tidak habis; kunci API dirotasi saat satu kunci habis atau ditolak, dan bila Groq gagal dicoba Gemini. Setiap AI work berakhir dengan penyimpanan ke database, jadi berita yang sudah dinilai langsung naik lapis (Cleaned → Relevan) tanpa menunggu AI work berikutnya. Berita di atas batas maksimum per jalan dilewati dan diambil pada jalan berikutnya.</div></details>
         <details><summary><b>7. Rating risiko</b><span class="sub">rumus, tanpa AI</span></summary><div class="st-b">Poin tiap temuan (tingkat × bobot sumber × kebaruan) dijumlah per kategori dan dibuat jenuh (skor kategori = 100 × (1 − e<sup>−poin/12</sup>), total memakai 28). Data keuangan emiten menambah poin kategori Keuangan. Sumber yang tidak kredibel (media sosial, forum, agregator) dibatasi sumbangannya. Rumus lengkap ada di halaman Bantuan.</div></details>
-        <details><summary><b>8. Analisis AI</b><span class="sub">satu panggilan per perusahaan</span></summary><div class="st-b">AI menyusun ringkasan, faktor risiko dan positif dari hasil rumus, data keuangan, dan sampai 22 berita (10 teratas dengan kutipan isi). Tiap poin wajib menyebut nomor berita; nomor yang tidak ada dibuang.</div></details>
-        <details><summary><b>9. Dossier</b><span class="sub">hanya dari berita</span></summary><div class="st-b">AI mengekstrak struktur dan hubungan bisnis perusahaan dari berita menjadi empat bagian, setiap poin membawa kutipan dan nomor berita. Statusnya "dari berita" sampai dicocokkan dengan dokumen resmi.</div></details>
+        <details><summary><b>8. Analisis AI</b><span class="sub">satu panggilan per perusahaan, mingguan</span></summary><div class="st-b">AI menyusun ringkasan, faktor risiko dan positif dari hasil rumus, data keuangan, dan sampai 22 berita (10 teratas dengan kutipan isi). Tiap poin wajib menyebut nomor berita; nomor yang tidak ada dibuang. <b>Dibuat ulang seminggu sekali:</b> bila analisis yang ada kurang dari 7 hari, langkah ini dilewati (teks AI bisa berbeda tiap dibuat, jadi tidak diganti tiap crawl). Tombol "Analisis AI" di Langkah satuan atau kotak "Paksa buat ulang" mengabaikan jadwal ini.</div></details>
+        <details><summary><b>9. Dossier</b><span class="sub">hanya dari berita, mingguan</span></summary><div class="st-b">AI mengekstrak struktur dan hubungan bisnis perusahaan dari berita menjadi empat bagian, setiap poin membawa kutipan dan nomor berita. Statusnya "dari berita" sampai dicocokkan dengan dokumen resmi. Mengikuti jadwal mingguan yang sama dengan analisis AI.</div></details>
       </details>
       <div class="sum" id="sum" hidden><h4>Ringkasan hasil</h4><div id="sumBody"></div></div>
       <div class="hist"><h4>Riwayat job</h4><div id="hist"><div class="hrow"><span></span><span class="sub">Belum ada job.</span></div></div><div class="hpg" id="histPg"></div></div>
@@ -187,7 +195,7 @@ function jobLabel(j) {
 
 // Jalur yang dipakai tiap tombol (harus sama dengan lanesOf di server). Tombol dinonaktifkan hanya bila jalurnya sedang dipakai job lain,
 // jadi crawl dan AI bisa berjalan bersamaan. "Full pipeline" tetap bisa dipakai saat AI sibuk: server otomatis menjalankannya tanpa AI.
-const LANES = { goOne: ['crawl'], goAll: ['crawl'], goAllRaw: ['crawl'], goReclass: ['ai'], goContent: ['crawl', 'ai'], goBackfill: ['crawl', 'ai'], goBackfillOne: ['crawl', 'ai'], goFin: ['crawl'], goAnalysis: ['ai'], goRescore: ['db'] };
+const LANES = { goPipeline: ['crawl'], goPipelineRaw: ['crawl'], goBackfill: ['crawl', 'ai'], goContent: ['crawl', 'ai'], goReclass: ['ai'], goAnalysis: ['ai'], goDossier: ['ai'], goFin: ['crawl'], goRescore: ['db'] };
 function applyLanes() {
   const held = activeJobs.flatMap((j) => j.lanes || []);
   for (const [id, need] of Object.entries(LANES)) {
@@ -202,7 +210,7 @@ function applyLanes() {
   document.querySelectorAll('.panel .btn').forEach((b) => (b.dataset.title = b.title || ''));
   const cfg = await (await fetch('/api/config')).json();
   cmap = Object.fromEntries(cfg.companies.map((c) => [c.id, c.ticker || c.name]));
-  $('#company').innerHTML = cfg.companies.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.ticker ? c.ticker + ' · ' : '') + esc(c.name) + '</option>').join('');
+  $('#company').innerHTML = '<option value="">Semua perusahaan (' + cfg.companies.length + ')</option>' + cfg.companies.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.ticker ? c.ticker + ' · ' : '') + esc(c.name) + '</option>').join('');
   const jobs = await (await fetch('/api/jobs')).json();
   const cur = jobs.find((j) => ACTIVE.includes(j.status)) || jobs[0];
   if (cur) jobId = cur.id;
@@ -221,17 +229,16 @@ function select(id) {
   $('#log').innerHTML = ''; $('#sum').hidden = true; $('#plan').hidden = true; planKey = ''; planOpen.clear();
   tick();
 }
-$('#goOne').onclick = () => start('portfolio', { companies: [$('#company').value] });
-$('#goAll').onclick = () => start('portfolio', {});
-$('#goAllRaw').onclick = () => start('portfolio', { classify: false, analysis: false });
-$('#goReclass').onclick = () => start('reclassify', {});
-$('#goContent').onclick = () => start('content', {});
-$('#goFin').onclick = () => start('financial', {});
-$('#goAnalysis').onclick = () => start('analysis', {});
-$('#goDossier').onclick = () => start('dossier', {});
-$('#goBackfill').onclick = () => start('backfill', {});
-$('#goBackfillOne').onclick = () => start('backfill', { companies: [$('#company').value] });
-$('#goRescore').onclick = () => start('rescore', {});
+const scope = () => ($('#company').value ? { companies: [$('#company').value] } : {});      // satu pilihan perusahaan berlaku untuk semua tombol
+$('#goPipeline').onclick = () => start('portfolio', { ...scope(), ...($('#forceAna').checked ? { forceAnalysis: true } : {}) });
+$('#goPipelineRaw').onclick = () => start('portfolio', { ...scope(), classify: false, analysis: false });
+$('#goBackfill').onclick = () => start('backfill', { ...scope(), ...($('#forceAna').checked ? { forceAnalysis: true } : {}) });
+$('#goContent').onclick = () => start('content', scope());
+$('#goReclass').onclick = () => start('reclassify', scope());
+$('#goAnalysis').onclick = () => start('analysis', scope());
+$('#goDossier').onclick = () => start('dossier', scope());
+$('#goFin').onclick = () => start('financial', scope());
+$('#goRescore').onclick = () => start('rescore', scope());
 $('#resume').onclick = async () => {
   if (!jobId) return;
   const r = await fetch('/api/jobs/' + jobId + '/resume', { method: 'POST' });

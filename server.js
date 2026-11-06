@@ -284,7 +284,7 @@ app.get('/api/news', async (req, res) => {
     const q = req.query;
     // Semua filter opsional dan bisa dikombinasikan; lihat where() di src/news.js. raw=1: data mentah (semua hasil crawl).
     const f = {
-      company: q.company, filter: q.filter || 'all', q: q.q, days: q.days === undefined ? 30 : Number(q.days), platform: q.platform, kind: q.kind, tier: q.tier,
+      company: q.company, filter: q.filter || 'all', q: q.q, days: q.days === undefined ? 7 : Number(q.days), platform: q.platform, kind: q.kind, tier: q.tier,
       impact: q.impact, category: q.category, sentiment: q.sentiment, riskMin: q.risk_min, riskCat: q.risk_cat, related: q.related, ai: q.ai, source: q.source, raw: layerOf(q),
     };
     const [items, counts, total, platforms] = await Promise.all([
@@ -300,7 +300,7 @@ app.get('/api/news/layers', async (_req, res) => {
 
 // Pilihan dropdown filter beserta jumlahnya
 app.get('/api/news/facets', async (req, res) => {
-  try { res.json(await newsFacets({ company: req.query.company, days: req.query.days === undefined ? 30 : Number(req.query.days), raw: layerOf(req.query) })); }
+  try { res.json(await newsFacets({ company: req.query.company, days: req.query.days === undefined ? 7 : Number(req.query.days), raw: layerOf(req.query) })); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 

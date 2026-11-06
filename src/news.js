@@ -120,7 +120,7 @@ const shape = (r) => ({ ...r, risk_signals: parse(r.risk_signals), risk_tags: pa
 
 export async function listNews({ sort = 'mix', limit = 30, offset = 0, raw = false, ...f } = {}) {
   const table = srcTable(raw);
-  const w = where({ days: 30, ...f }, { table });
+  const w = where({ days: 7, ...f }, { table });
   const lim = Math.min(100, Math.max(1, Number(limit) || 30));
   const off = Math.max(0, Number(offset) || 0);
   const [rows] = await db().query(
@@ -132,14 +132,14 @@ export async function listNews({ sort = 'mix', limit = 30, offset = 0, raw = fal
 
 // Total hasil untuk semua filter yang aktif (untuk "Menampilkan X dari Y").
 export async function newsTotal({ raw = false, ...f } = {}) {
-  const w = where({ days: 30, ...f }, { table: srcTable(raw) });
+  const w = where({ days: 7, ...f }, { table: srcTable(raw) });
   const [[r]] = await db().query(`SELECT COUNT(*) n FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql}`, w.params);
   return Number(r.n);
 }
 
 // Hitungan untuk badge tab: semua filter lain tetap berlaku, tab-nya sendiri diabaikan.
 export async function newsCounts({ raw = false, ...f } = {}) {
-  const w = where({ days: 30, ...f }, { skipTab: true });
+  const w = where({ days: 7, ...f }, { skipTab: true });
   const [[r]] = await db().query(
     `SELECT COUNT(*) AS \`all\`,
        SUM(n.credibility_tier = 'official') AS official, SUM(n.category = 'rumor') AS rumor,
@@ -152,7 +152,7 @@ export async function newsCounts({ raw = false, ...f } = {}) {
 }
 
 // Pilihan untuk dropdown beserta jumlahnya (mengikuti perusahaan, rentang waktu, dan mode mentah/cleaned).
-export async function newsFacets({ company, days = 30, raw = false } = {}) {
+export async function newsFacets({ company, days = 7, raw = false } = {}) {
   const w = where({ company, days }, { table: srcTable(raw) });
   const base = `FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql}`;
   const grp = async (col, extra = '') => {
@@ -180,7 +180,7 @@ export async function newsFacets({ company, days = 30, raw = false } = {}) {
 }
 
 // Jumlah per platform untuk dropdown (kompatibel dengan pemanggil lama).
-export async function platformCounts({ company, q, days = 30, raw = false } = {}) {
+export async function platformCounts({ company, q, days = 7, raw = false } = {}) {
   const w = where({ company, q, days }, { table: srcTable(raw) });
   const [rows] = await db().query(
     `SELECT n.platform p, COUNT(*) n FROM ${srcTable(raw)} n JOIN companies c ON c.id = n.company_id WHERE ${w.sql} GROUP BY n.platform`,
@@ -205,7 +205,7 @@ export async function layerCounts() {
 }
 
 // Ringkasan sinyal per perusahaan (kartu "Portofolio" / panel kanan) dari data cleaned.
-export async function companyNewsStats(days = 30, raw = false) {
+export async function companyNewsStats(days = 7, raw = false) {
   const [rows] = await db().query(
     `SELECT n.company_id, COUNT(*) AS total, SUM(n.credibility_tier = 'official') AS official, SUM(n.category = 'rumor') AS rumor,
        SUM(n.impact = 'baik') AS positive, SUM(${RISK_SQL}) AS risk, MAX(n.sort_at) AS latest
@@ -255,6 +255,7 @@ export async function listRiskNews(companyId, days = 90) {
 // Hanya untuk berita/sumber resmi/blog; caption video dan sosmed memang tidak berbentuk kalimat utuh. Heuristik, bukan kepastian.
 // Baris penutup bawaan situs (tanggal terbit, editor, ajakan membaca/mengikuti) bukan bagian kalimat artikel, jadi tidak ikut dinilai.
 const FOOTER_LINE = /^(diterbitkan|dipublikasikan|dipublikasi|published|updated|diperbarui|editor|penulis|reporter|sumber|source|foto|baca juga|baca selengkapnya|terkait|artikel terkait|berita terkait|simak|cek berita|ikuti|follow|bagikan|share|tag|topik|copyright|hak cipta|©|\(?[a-z ]{2,30}\/[a-z ]{2,30}\)?$)/i;
+const TAIL_BOILER = /(kirim komentar|belum ada komentar|silahkan login|silakan login|data komentar anda|terms of use|pedoman media siber|info iklan|all rights? reserved|copyright|©|follow channel|channel telegram|klik di sini|tautan telah disalin|newsletter|google-site-verification|new password|redaksi\s*:|english version|baca juga|baca berita)/i;
 export function contentLooksTruncated(html, platform) {
   if (!html || platform === 'video' || platform === 'sosmed') return false;
   const paras = String(html).split(/<\/(?:p|div|li|h[1-6]|blockquote)>|<br\s*\/?>/i).map((p) => p.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
@@ -262,7 +263,18 @@ export function contentLooksTruncated(html, platform) {
   paras[paras.length - 1] = paras[paras.length - 1].replace(/\s*(baca berita terkini[^.]*|(copyright|©)?[^.]*all rights? reserved\.?|hubungi (divisi|kami)[^.]*|english version)$/i, '.').replace(/[\s*_#~-]+$/, '');         // tanda pemformatan di ujung (mis. "*") bukan akhir kalimat
   const text = paras.join(' ');
   if (text.length < 200) return false;
-  return !/[.!?…"'”’)\]»:;]$/.test(paras[paras.length - 1]) || /(\[…\]|\.\.\.|…)$/.test(text);
+  // Ekor halaman (kolom komentar, hak cipta, ajakan mengikuti, menu redaksi) di 700 karakter terakhir bukan bagian artikel: dipotong sebelum dinilai.
+  const tail0 = Math.max(0, text.length - 700);
+  const bm = TAIL_BOILER.exec(text.slice(tail0));
+  const core = (bm ? text.slice(0, tail0 + bm.index) : text).trim();
+  if (core.length < 200) return false;
+  if (/(\[…\]|\.\.\.|…)$/.test(core)) return true;                  // elipsis eksplisit dari penerbit
+  if (/[.!?"'”’)\]»:;]$/.test(core)) return false;                  // berakhir tanda baca: kalimat selesai
+  // Tanpa tanda baca di ujung: dianggap terpotong hanya bila berhenti di TENGAH kalimat, yaitu kata terakhirnya berhuruf kecil (dengan, yang, untuk, ...).
+  // Berakhir kata berhuruf besar atau angka (daftar agenda, nama "... Tbk", tanggal) atau penutup kutipan ("pungkasnya", "kata dia") bukan tanda terpotong.
+  const lastWord = (core.match(/([\p{L}\p{N}]+)\W*$/u) || [])[1] || '';
+  if (/nya$/i.test(lastWord) || /^dia$/i.test(lastWord)) return false;
+  return /^\p{Ll}/u.test(lastWord);
 }
 
 export async function getNewsDetail(id) {

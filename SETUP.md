@@ -95,3 +95,24 @@ Semua data tersimpan di MySQL (schema `media-search`). Ringkasan lapis data beri
 | Asisten AI tidak menjawab | Pastikan `MCP_DB_USER` dan `MCP_DB_PASSWORD` terisi dan user `mcp_ro` sudah dibuat |
 | `python` tidak ditemukan | Isi `PYTHON=python3` di `.env` |
 | Port sudah dipakai | Isi `PORT=3001` di `.env` |
+
+---
+
+## Jadwal otomatis (GitHub Actions)
+
+Dua workflow di `.github/workflows/` menjalankan Task Runner secara terjadwal:
+
+| Workflow | Jadwal | Isi |
+|---|---|---|
+| `daily.yml` | Setiap hari 06.00 WIB | Full pipeline semua perusahaan (berita baru, klasifikasi AI, rating risiko). Analisis AI dan dossier dibuat ulang bila sudah lebih dari 7 hari |
+| `weekly.yml` | Setiap Minggu 22.00 WIB | Lengkapi data tersimpan (unmask, isi artikel, klasifikasi AI), lalu buat ulang analisis AI dan dossier |
+
+Keduanya juga bisa dijalankan manual dari tab Actions (Run workflow).
+
+Database dan server Media Search ada di komputer sendiri, jadi workflow berjalan di **runner self-hosted** di komputer yang sama:
+
+1. Di GitHub: Settings → Actions → Runners → New self-hosted runner, lalu ikuti petunjuknya sampai runner terpasang dan berstatus Idle. Disarankan dipasang sebagai layanan agar tetap hidup.
+2. Pastikan server berjalan (`npm start` atau pm2) dan komputer tidak sleep pada jam jadwal.
+3. Alamat server bawaan workflow adalah `http://localhost:3062`. Bila port berbeda, buat repository variable `MEDIA_SEARCH_URL` di Settings → Secrets and variables → Actions → Variables.
+
+Workflow memanggil API Task Runner, memantau job sampai selesai, dan berstatus gagal bila job berhenti dengan error. Tidak ada rahasia yang disimpan di GitHub.

@@ -99,6 +99,27 @@ const MAX_REAL_JOBS = 1000;    // pengaman: satu run nyata maksimal 1000 query
 const num = (v, d) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Analisis AI dan dossier dibuat ulang MINGGUAN (bawaan 7 hari; opts.analysisEveryDays), bukan tiap crawl: teks buatan AI bisa berbeda tiap kali dibuat,
+// jadi yang sudah ada dipertahankan sampai cukup tua. Berita baru tidak memicu pembuatan ulang. opts.forceAnalysis = true mengabaikan jadwal.
+// Tombol "Analisis AI" dan "Dossier" di Task Runner selalu membuat ulang (langkah satuan, dipicu manual).
+const REFRESH_DAYS = 7;
+const ageDays = (iso) => (iso ? (Date.now() - new Date(iso).getTime()) / 864e5 : Infinity);
+const everyDaysOf = (opts) => clamp(num(opts.analysisEveryDays, REFRESH_DAYS), 0, 365);
+// Umur (hari) hasil terakhir bila MASIH segar menurut jadwal; null bila perlu dibuat ulang (belum ada, format lama, sudah tua, atau dipaksa).
+async function freshAnalysisAge(coId, opts) {
+  if (opts.forceAnalysis) return null;
+  const a = await latestAnalysis(coId).catch(() => null);
+  const age = a?.verifikasi ? ageDays(a.generatedAt) : Infinity;
+  return age < everyDaysOf(opts) ? age : null;
+}
+async function freshDossierAge(coId, opts) {
+  if (opts.forceAnalysis) return null;
+  const d = await getCompanyDossier(coId).catch(() => null);
+  const age = ageDays(d?.generated_at);
+  return age < everyDaysOf(opts) ? age : null;
+}
+const umurTxt = (age) => (age < 1 ? 'hari ini' : Math.floor(age) + ' hari lalu');
+
 function cancelled() {
   return Object.assign(new Error('Dibatalkan'), { code: 'CANCELLED' });
 }
@@ -364,14 +385,13 @@ export async function runPortfolio(opts = {}, ctx = {}) {
       mark('crawl');
       }
 
-      // Analisis AI hanya dibuat ulang bila ada berita baru, atau belum ada analisis format FAP, atau yang ada sudah > 24 jam (hemat token).
-      const lastAna = doAnalysis ? await latestAnalysis(co.id).catch(() => null) : null;
-      const anaFresh = lastAna && lastAna.verifikasi && Date.now() - new Date(lastAna.generatedAt).getTime() < 24 * 3600 * 1000;
+      // Analisis AI: dibuat ulang mingguan (lihat freshAnalysisAge), bukan tiap crawl.
+      const anaAge = doAnalysis ? await freshAnalysisAge(co.id, opts) : null;
       if (stepDone('analysis')) { row.analysis = 'sudah selesai (dilewati)'; log('analisis AI sudah selesai pada run sebelumnya: dilewati'); }
-      else if (doAnalysis && anaFresh && (row.newItems || 0) === 0) {
-        row.analysis = 'dilewati (tidak ada berita baru)';
+      else if (doAnalysis && anaAge !== null) {
+        row.analysis = 'dilewati (dibuat ' + umurTxt(anaAge) + ')';
         mark('analysis');
-        log('analisis AI dilewati: tidak ada berita baru dan analisis masih segar (< 24 jam)');
+        log('analisis AI dilewati: dibuat ' + umurTxt(anaAge) + '; dibuat ulang setelah ' + everyDaysOf(opts) + ' hari');
       } else if (doAnalysis) {
         try {
           const fin = co.type === 'public' && co.ticker ? await getFinancials(co.ticker).catch(() => null) : null;
@@ -383,12 +403,11 @@ export async function runPortfolio(opts = {}, ctx = {}) {
       }
 
       // Dossier korporasi (4 bagian) memakai isi berita yang baru saja disimpan dan dinilai, jadi dibuat paling akhir.
-      // Dilewati hanya bila tidak ada berita baru dan dossier yang ada masih segar (< 24 jam), agar hemat token.
+      // Dilewati bila dossier yang ada masih segar menurut jadwal mingguan.
       if (stepDone('dossier')) { row.dossier = 'sudah selesai (dilewati)'; log('dossier sudah selesai pada run sebelumnya: dilewati'); }
       else if (doDossier) {
-        const lastD = await getCompanyDossier(co.id).catch(() => null);
-        const dFresh = lastD?.generated_at && Date.now() - new Date(lastD.generated_at).getTime() < 24 * 3600 * 1000;
-        if (dFresh && (row.newItems || 0) === 0) { row.dossier = 'dilewati (tidak ada berita baru)'; mark('dossier'); log('dossier dilewati: tidak ada berita baru dan dossier masih segar (< 24 jam)'); }
+        const dosAge = await freshDossierAge(co.id, opts);
+        if (dosAge !== null) { row.dossier = 'dilewati (dibuat ' + umurTxt(dosAge) + ')'; mark('dossier'); log('dossier dilewati: dibuat ' + umurTxt(dosAge) + '; dibuat ulang setelah ' + everyDaysOf(opts) + ' hari'); }
         else {
           try {
             const d = await generateCompanyDossier(co.id, { signal: ctx.signal });
@@ -585,17 +604,25 @@ export async function runBackfill(opts = {}, ctx = {}) {
 
     if (done('analysis')) log('3/4 analisis AI: sudah selesai, dilewati');
     else {
+      const anaAge = await freshAnalysisAge(co.id, opts);
+      if (anaAge !== null) { row.analisis = 'dilewati (dibuat ' + umurTxt(anaAge) + ')'; mark('analysis'); log('3/4 analisis AI dilewati: dibuat ' + umurTxt(anaAge) + '; dibuat ulang setelah ' + everyDaysOf(opts) + ' hari'); }
+      else {
       log('3/4 analisis AI');
       try { const a = await analyzeCompany(co, ctx); row.analisis = a.kondisi; mark('analysis'); }
       catch (e) { if (e.code === 'CANCELLED') throw e; row.analisis = 'gagal: ' + e.message; errors.push('analisis AI gagal'); log('analisis gagal: ' + e.message); }
+      }
       throwIfAborted(ctx.signal);
     }
 
     if (done('dossier')) log('4/4 dossier: sudah selesai, dilewati');
     else {
+      const dosAge = await freshDossierAge(co.id, opts);
+      if (dosAge !== null) { row.dossier = 'dilewati (dibuat ' + umurTxt(dosAge) + ')'; mark('dossier'); log('4/4 dossier dilewati: dibuat ' + umurTxt(dosAge) + '; dibuat ulang setelah ' + everyDaysOf(opts) + ' hari'); }
+      else {
       log('4/4 dossier korporasi');
       try { const d = await generateCompanyDossier(co.id, { signal: ctx.signal }); row.dossier = d.stats.total_items + ' temuan'; mark('dossier'); log('dossier dibuat: ' + d.stats.total_items + ' temuan'); }
       catch (e) { if (e.code === 'CANCELLED') throw e; row.dossier = 'gagal: ' + e.message; errors.push('dossier gagal'); log('dossier gagal: ' + e.message); }
+      }
     }
 
     if (errors.length) failNow(errors.join('; ') + ' (langkah lain sudah tersimpan)');
