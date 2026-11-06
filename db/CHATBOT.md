@@ -7,7 +7,7 @@ proses FAP perusahaan pembiayaan alat berat (risiko debitur dan deed discovery).
 
 Akses data lewat server MCP (MCP Toolbox, Google, v1.15.0) dengan **alat tetap** di `mcp/tools.yaml`: tiap alat adalah satu SQL berparameter, jadi klien tidak menulis SQL.
 User MySQL `mcp_ro` hanya punya `SELECT` pada objek yang diizinkan (`db/mcp_readonly_user.sql`). Kredensial dari environment: `MCP_DB_HOST`, `MCP_DB_PORT`, `MCP_DB_USER`, `MCP_DB_PASSWORD`.
-Aplikasi (`src/mcp.js`) memverifikasi hash biner Toolbox sebelum menjalankannya. Tambah alat baru dengan menulis SQL-nya di `mcp/tools.yaml` (tambahkan `GRANT SELECT` bila memakai objek baru).
+Aplikasi (`src/ai/mcp.js`) memverifikasi hash biner Toolbox sebelum menjalankannya. Tambah alat baru dengan menulis SQL-nya di `mcp/tools.yaml` (tambahkan `GRANT SELECT` bila memakai objek baru).
 
 | Alat | Fungsi |
 |---|---|
@@ -22,9 +22,9 @@ Aplikasi (`src/mcp.js`) memverifikasi hash biner Toolbox sebelum menjalankannya.
 | `dossier_terbaru(company)` | dossier 4 bagian (pemilik, klien, akta, fasilitas bank) dengan kutipan dan status verifikasi |
 | `keuangan_terbaru(company)` | harga, valuasi, 2 kuartal terakhir (emiten saja) |
 | `pemangku_kepentingan(company)` | pengurus/pemegang saham yang diisi analis |
-| `bantuan_aplikasi(kata)` | isi halaman Bantuan (cara kerja, istilah, rating, lapis data, dll.) dari tabel `app_help`; maks. 6 bagian, satu kata kunci pendek. Tabel diisi `node --env-file=.env scripts/db-add-help.js` dari `public/help.html` (jalankan ulang setiap habis mengedit Bantuan) |
+| `bantuan_aplikasi(kata)` | isi halaman Bantuan (cara kerja, istilah, rating, lapis data, dll.) dari tabel `app_help`; maks. 6 bagian, satu kata kunci pendek. Tabel diisi `node --env-file=.env scripts/db/db-add-help.js` dari `src/app/(app)/help/page.tsx` (jalankan ulang setiap habis mengedit Bantuan) |
 
-Asisten AI di portal (`src/assistant.js`) memakai alat yang sama lewat function calling dan instruksi di `mcp/skill.md`.
+Asisten AI di portal (`src/ai/assistant.js`) memakai alat yang sama lewat function calling dan instruksi di `mcp/skill.md`.
 
 ## Tiga lapis data berita
 

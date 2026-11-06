@@ -3,7 +3,6 @@
 ## Kebutuhan
 
 - **Node.js** v22+
-- **Python** 3.10+
 - **MySQL** 8+
 
 ---
@@ -36,7 +35,7 @@ MCP_DB_USER=...
 MCP_DB_PASSWORD=...
 ```
 
-Pengaturan opsional (nilai bawaan dalam kurung): `PORT` (3000), `GROQ_MODEL`, `GEMINI_MODEL`, `PYTHON` (`python`; isi `python3` bila perlu), `AI_MAX_ITEMS`, `FINANCIAL_TTL_HOURS`. Daftar lengkap ada di `.env.example`.
+Pengaturan opsional (nilai bawaan dalam kurung): `PORT` (3000), `GROQ_MODEL`, `GEMINI_MODEL`, `AI_MAX_ITEMS`, `FINANCIAL_TTL_HOURS`. Daftar lengkap ada di `.env.example`.
 
 ---
 
@@ -48,14 +47,11 @@ npm install
 
 ---
 
-## 4. Pasang dependensi Python
+## 4. Pasang browser untuk Playwright
 
 ```bash
-pip install -r listener/requirements.txt
-playwright install chromium
+npx playwright install chromium
 ```
-
-> Bila perintah `playwright` tidak ditemukan: `python -m playwright install chromium`
 
 ---
 
@@ -73,11 +69,20 @@ Untuk asisten AI, jalankan `db/mcp_readonly_user.sql` sebagai admin MySQL (ganti
 
 ## 6. Jalankan aplikasi
 
+Aplikasi ini Next.js (React + TypeScript) dengan API di folder yang sama. Untuk bekerja dan mengubah kode:
+
 ```bash
+npm run dev
+```
+
+Untuk dipakai sehari-hari, bangun dulu lalu jalankan versi produksi (setiap habis mengubah kode, ulangi `npm run build`):
+
+```bash
+npm run build
 npm start
 ```
 
-Buka http://localhost:3000 (atau sesuai `PORT`). Pengambilan berita, klasifikasi AI, rating, analisis, dan dossier dijalankan dari halaman **Task Runner**. Cara kerja dan arti istilah ada di halaman **Bantuan** (`/help.html`).
+Buka http://localhost:3000 (atau sesuai `PORT`). Pengambilan berita, klasifikasi AI, rating, analisis, dan dossier dijalankan dari halaman **Task Runner**. Cara kerja dan arti istilah ada di halaman **Bantuan** (`/help`).
 
 ---
 
@@ -93,5 +98,4 @@ Semua data tersimpan di MySQL (schema `media-search`). Ringkasan lapis data beri
 |---|---|
 | Tidak bisa terhubung ke database | Periksa `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` di `.env`, dan pastikan MySQL berjalan |
 | Asisten AI tidak menjawab | Pastikan `MCP_DB_USER` dan `MCP_DB_PASSWORD` terisi dan user `mcp_ro` sudah dibuat |
-| `python` tidak ditemukan | Isi `PYTHON=python3` di `.env` |
 | Port sudah dipakai | Isi `PORT=3001` di `.env` |

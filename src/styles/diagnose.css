@@ -1,0 +1,9 @@
+/* DIHASILKAN dari CSS halaman lama dengan awalan .pg-diagnose. Sunting di sini. */
+
+  .pg-diagnose{margin:0;padding:20px;background:#0b0d10;color:#e6e9ed;font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .pg-diagnose h1{font-size:18px;margin:0 0 4px} .pg-diagnose p{color:#8a93a0;margin:0 0 16px}
+  .pg-diagnose table{border-collapse:collapse;width:100%;max-width:760px} .pg-diagnose td,.pg-diagnose th{border:1px solid #232932;padding:8px 10px;text-align:left;vertical-align:top;font-size:13px}
+  .pg-diagnose th{background:#0f1318;color:#8a93a0;font-weight:600}
+  .pg-diagnose .ok{color:#2fbf71;font-weight:700} .pg-diagnose .bad{color:#ef5b5b;font-weight:700} .pg-diagnose .mono{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+  .pg-diagnose a{color:#4c8dff}
+

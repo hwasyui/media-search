@@ -1,4 +1,5 @@
 // Menjalankan Media Search sebagai proses latar belakang dengan pm2 (tetap jalan walau terminal ditutup, restart otomatis bila crash).
+// Jalankan `npm run build` dulu: pm2 menjalankan versi produksi Next.js (server.js --prod).
 //   npm run pm2:start     jalankan
 //   npm run pm2:status    lihat status
 //   npm run pm2:logs      lihat log
@@ -8,6 +9,7 @@ module.exports = {
   apps: [{
     name: 'media-search',
     script: 'server.js',
+    args: '--prod',
     cwd: __dirname,
     node_args: '--env-file-if-exists=.env',
     autorestart: true,          // hidup lagi otomatis bila crash

@@ -21,7 +21,7 @@ GRANT SELECT ON `media-search`.`companies`           TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`stakeholders`        TO 'mcp_ro'@'localhost';
 GRANT SELECT ON `media-search`.`company_dossiers`    TO 'mcp_ro'@'localhost';   -- dossier korporasi 4 bagian (pemilik, klien, akta, fasilitas bank) + rujukan berita
 GRANT SELECT ON `media-search`.`news_also`           TO 'mcp_ro'@'localhost';   -- media lain yang memuat berita yang sama (duplikat yang tidak disimpan sebagai berita sendiri)
-GRANT SELECT ON `media-search`.`app_help`            TO 'mcp_ro'@'localhost';   -- isi halaman Bantuan (alat bantuan_aplikasi); diisi oleh scripts/db-add-help.js dari public/help.html
+GRANT SELECT ON `media-search`.`app_help`            TO 'mcp_ro'@'localhost';   -- isi halaman Bantuan (alat bantuan_aplikasi); diisi oleh scripts/db/db-add-help.js dari src/app/(app)/help/page.tsx
 
 -- Data mentah (semua hasil crawl, termasuk yang tidak terkait). Hapus 2 baris ini bila chatbot tidak perlu menelusurinya.
 -- Catatan: news_items memuat isi artikel lengkap (content_html), kolom hasil AI (ai_summary, company_role, risk_tags, ...), dan alamat artikel asli (article_url).

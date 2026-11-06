@@ -1,0 +1,3 @@
+/* Dasar seluruh aplikasi. CSS tiap halaman ada di src/styles/*.css dan diberi awalan .pg-<halaman> supaya tidak saling menimpa. */
+html { color-scheme: dark; }
+body { margin: 0; background: #0b0d10; color: #e6e9ed; }

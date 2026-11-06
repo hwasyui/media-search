@@ -12,10 +12,7 @@ logs/
 data/playwright_profile/
 data/covers/
 data/reports/
-listener/data/
-listener/__pycache__/
-**/__pycache__/
-*.pyc
+src/listener/data/
 *.db
 *.sqlite
 
@@ -33,3 +30,8 @@ listener/__pycache__/
 # Arsip cadangan & tangkapan layar uji
 *.zip
 dbg_*.png
+
+# Next.js
+.next/
+next-env.d.ts
+*.tsbuildinfo

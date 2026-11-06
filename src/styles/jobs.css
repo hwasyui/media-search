@@ -1,0 +1,77 @@
+/* DIHASILKAN dari CSS halaman lama dengan awalan .pg-jobs. Sunting di sini. */
+
+  .pg-jobs{--bg:#0b0d10;--panel:#0f1318;--panel2:#141920;--line:#232932;--line2:#2e3641;--text:#e6e9ed;--muted:#8a93a0;--dim:#5b636e;--accent:#4c8dff;--green:#2fbf71;--red:#ef5b5b;--amber:#fbbf24}
+  .pg-jobs, .pg-jobs *{box-sizing:border-box;margin:0}
+  .pg-jobs{background:var(--bg);color:var(--text);font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .pg-jobs a{color:var(--accent);text-decoration:none}
+  .pg-jobs .page{padding:24px 28px 60px;max-width:1280px}
+  .pg-jobs .head{border:1px solid var(--line);background:var(--panel);padding:18px 22px;margin-bottom:22px;border-left:3px solid var(--accent)}
+  .pg-jobs .head h1{font-size:20px;letter-spacing:-.01em}
+  .pg-jobs .head p{color:var(--muted);margin-top:4px}
+  .pg-jobs .cols{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:22px;align-items:start}
+  .pg-jobs h2{font-size:11.5px;letter-spacing:.12em;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:12px}
+  .pg-jobs .panel{background:var(--panel);border:1px solid var(--line);padding:18px;margin-bottom:14px}
+  .pg-jobs .panel h3{font-size:15px;margin-bottom:4px}
+  .pg-jobs .panel p{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .pg-jobs select{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--text);padding:10px 12px;font:inherit;margin-bottom:10px}
+  .pg-jobs .btn{display:flex;width:100%;justify-content:center;align-items:center;gap:8px;padding:11px 14px;font:inherit;font-weight:600;border:1px solid var(--line2);background:var(--panel2);color:var(--text);cursor:pointer}
+  .pg-jobs .btn:hover:not(:disabled){border-color:var(--accent)}
+  .pg-jobs .btn:disabled{opacity:.45;cursor:not-allowed}
+  .pg-jobs .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .pg-jobs .btn.pri:hover:not(:disabled){filter:brightness(1.1)}
+  .pg-jobs .btn+.btn{margin-top:8px}
+  .pg-jobs .panel h4.sub{font-size:11px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin:16px 0 8px}
+  .pg-jobs .btn.warn{border-color:#5a3a3a;color:#f1a5a5}
+  .pg-jobs .term{background:#000;border:1px solid var(--line);display:flex;flex-direction:column;min-height:520px}
+  .pg-jobs .term-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#06080a;gap:10px;flex-wrap:wrap}
+  .pg-jobs .state{font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;display:flex;align-items:center;gap:8px}
+  .pg-jobs .state i{width:8px;height:8px;background:var(--dim);display:inline-block}
+  .pg-jobs .state.running i{background:var(--green);animation:blink 1s infinite} .pg-jobs .state.running{color:var(--green)}
+  .pg-jobs .state.done{color:var(--green)} .pg-jobs .state.done i{background:var(--green)}
+  .pg-jobs .state.error{color:var(--red)} .pg-jobs .state.error i{background:var(--red)}
+  .pg-jobs .state.cancelled,.pg-jobs .state.interrupted{color:var(--amber)} .pg-jobs .state.cancelled i,.pg-jobs .state.interrupted i{background:var(--amber)}
+  @keyframes blink{50%{opacity:.25}}
+  .pg-jobs .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:1px solid var(--line);background:#06080a}
+  .pg-jobs .stat{padding:9px 14px;border-right:1px solid var(--line);min-width:0} .pg-jobs .stat:last-child{border-right:0}
+  .pg-jobs .stat small{display:block;font-size:10.5px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .pg-jobs .stat b{display:block;font:600 14px ui-monospace,Menlo,Consolas,monospace;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pg-jobs .stat b.clock{font-size:18px;letter-spacing:.04em}
+  .pg-jobs .note{padding:9px 14px;border-bottom:1px solid var(--line);background:#14110a;color:#e9c46a;font-size:12.5px;line-height:1.5} .pg-jobs .note[hidden]{display:none}
+  .pg-jobs .hist{border:1px solid var(--line);background:var(--panel);margin-top:14px}
+  .pg-jobs .hpg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)} .pg-jobs .hpg:empty{display:none}
+  .pg-jobs .hpg button{background:transparent;border:1px solid var(--line);color:var(--text);padding:3px 10px;font:inherit;cursor:pointer} .pg-jobs .hpg button:disabled{opacity:.35;cursor:default}
+  .pg-jobs .hist h4{padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .pg-jobs .hrow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .pg-jobs .hrow:last-child{border-bottom:0} .pg-jobs .hrow:hover{background:var(--panel2)} .pg-jobs .hrow.on{background:#101a29;box-shadow:inset 2px 0 var(--accent)}
+  .pg-jobs .hrow .dot{width:8px;height:8px;background:var(--dim)} .pg-jobs .hrow.running .dot{background:var(--green);animation:blink 1s infinite} .pg-jobs .hrow.done .dot{background:var(--green)} .pg-jobs .hrow.error .dot{background:var(--red)} .pg-jobs .hrow.cancelled .dot,.pg-jobs .hrow.interrupted .dot{background:var(--amber)}
+  .pg-jobs .hrow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .pg-jobs .hrow .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pg-jobs .hrow .rt{text-align:right;font:12px ui-monospace,Menlo,monospace;color:var(--muted);white-space:nowrap} .pg-jobs .hrow .rt b{display:block;color:var(--text);font-size:13px}
+  .pg-jobs .hrow .rs{color:var(--amber)}
+  .pg-jobs .bar{height:3px;background:#12161b} .pg-jobs .bar>div{height:100%;background:var(--accent);width:0;transition:width .4s}
+  .pg-jobs #log{flex:1;padding:14px 16px;overflow:auto;max-height:340px;font:12.5px/1.65 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+  .pg-jobs #log .l{display:block} .pg-jobs #log .t{color:var(--dim)} .pg-jobs #log .h{color:#7db3ff;font-weight:700} .pg-jobs #log .e{color:var(--red)} .pg-jobs #log .ok{color:var(--green)} .pg-jobs #log .w{color:var(--amber)}
+  .pg-jobs .term-foot{display:flex;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .pg-jobs .term-foot button{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit}
+  .pg-jobs .sum{margin-top:14px;border:1px solid var(--line);background:var(--panel);overflow-x:auto}
+  .pg-jobs .sum h4{padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .pg-jobs table{border-collapse:collapse;width:100%;font-size:12.5px} .pg-jobs th,.pg-jobs td{padding:8px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap} .pg-jobs th{color:var(--muted);font-weight:600}
+  .pg-jobs .adv{margin-top:18px;font-size:12.5px;color:var(--dim)}
+  @media (max-width:980px){.pg-jobs .cols{grid-template-columns:1fr}.pg-jobs .page{padding:16px}}
+  @media (max-width:560px){.pg-jobs .page{padding:12px}.pg-jobs .head{padding:14px}.pg-jobs .panel{padding:14px}.pg-jobs #log{max-height:420px;font-size:12px}.pg-jobs .term{min-height:360px}.pg-jobs .term-top{padding:8px 10px}}
+  .pg-jobs .plan{margin-top:14px;border:1px solid var(--line);background:var(--panel)}
+  .pg-jobs .plan h4{padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .pg-jobs .plan .pl-sum{padding:10px 14px;color:var(--muted);font-size:12.5px;line-height:1.6;border-bottom:1px solid var(--line)}
+  .pg-jobs .plan details{border-bottom:1px solid var(--line)} .pg-jobs .plan details:last-child{border-bottom:0}
+  .pg-jobs .plan summary{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 14px;cursor:pointer;font-size:12.5px}
+  .pg-jobs .plan summary:hover{background:rgba(255,255,255,.03)}
+  .pg-jobs .plan .pl-st{font-size:11px;padding:1px 8px;border:1px solid var(--line);color:var(--muted)}
+  .pg-jobs .plan .pl-st.berjalan{color:#5ef2ff;border-color:#5ef2ff} .pg-jobs .plan .pl-st.selesai{color:#4ade80;border-color:#4ade80} .pg-jobs .plan .pl-st.gagal{color:#f87171;border-color:#f87171}
+  .pg-jobs .plan > summary.ph{display:block;padding:10px 14px;font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;cursor:pointer} .pg-jobs .plan > summary.ph .sub{text-transform:none;letter-spacing:0;margin-left:8px}
+  .pg-jobs #steps[open] > summary.ph{border-bottom:1px solid var(--line)} .pg-jobs #steps .st-b{max-height:none}
+  .pg-jobs .plan .st-b{padding:2px 14px 12px;color:var(--muted);font-size:12.5px;line-height:1.7} .pg-jobs .plan .st-b b{color:var(--text)} .pg-jobs .plan .st-b code{font-size:11.5px;color:#5ef2ff}
+  .pg-jobs .plan summary .sub{color:var(--muted);font-size:12px}
+  .pg-jobs .plan .pl-t{overflow-x:auto;max-width:100%}
+  .pg-jobs .plan .pl-t table{width:100%;min-width:560px}
+  .pg-jobs .plan .pl-t td{white-space:normal;word-break:break-word;vertical-align:top} .pg-jobs .plan .pl-t td.q{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;min-width:260px}
+  .pg-jobs .plan .pl-t td.n{text-align:right;white-space:nowrap}
+

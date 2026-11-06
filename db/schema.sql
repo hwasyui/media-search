@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS crawl_runs (
   CONSTRAINT fk_run_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
--- Index lokal crawler Python (listener/): arsip artikel mentah, URL yang sudah diproses, hasil auto-discovery.
+-- Index lokal crawler (src/listener/): arsip artikel mentah, URL yang sudah diproses, hasil auto-discovery.
 CREATE TABLE IF NOT EXISTS crawler_articles (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   url_hash     BINARY(20) NOT NULL,
@@ -259,8 +259,8 @@ CREATE TABLE IF NOT EXISTS news_also (
   CONSTRAINT fk_also_news FOREIGN KEY (news_id) REFERENCES news_items(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
--- Isi halaman Bantuan (public/help.html) per bagian, dibaca asisten AI lewat alat MCP bantuan_aplikasi (user mcp_ro hanya SELECT).
--- Diisi/diperbarui oleh `node --env-file=.env scripts/db-add-help.js` (jalankan ulang setiap habis mengedit Bantuan); help.html tetap satu-satunya sumber.
+-- Isi halaman Bantuan (src/app/(app)/help/page.tsx) per bagian, dibaca asisten AI lewat alat MCP bantuan_aplikasi (user mcp_ro hanya SELECT).
+-- Diisi/diperbarui oleh `node --env-file=.env scripts/db/db-add-help.js` (jalankan ulang setiap habis mengedit Bantuan); page.tsx tetap satu-satunya sumber.
 CREATE TABLE IF NOT EXISTS app_help (
   id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   anchor     VARCHAR(40) CHARACTER SET ascii NOT NULL,

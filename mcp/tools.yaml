@@ -1,4 +1,4 @@
-# Alat MCP untuk asisten Media Search (dijalankan oleh MCP Toolbox, Google, v1.15.0; biner terverifikasi hash dan tanda tangan, lihat src/mcp.js).
+# Alat MCP untuk asisten Media Search (dijalankan oleh MCP Toolbox, Google, v1.15.0; biner terverifikasi hash dan tanda tangan, lihat src/ai/mcp.js).
 # PRINSIP KEAMANAN
 #  * Model TIDAK menulis SQL. Setiap alat = satu SQL tetap dengan parameter (prepared statement "?"); nilai dari model hanya jadi NILAI, tidak pernah jadi bagian perintah.
 #  * Batas baris ada di SQL (LIMIT) dan isi artikel penuh tidak pernah dikirim di daftar.
