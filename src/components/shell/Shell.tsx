@@ -59,6 +59,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     <div className="shell-root">
       <aside className={'shell-side' + (open ? ' open' : '')} onClick={(e) => { if ((e.target as HTMLElement).closest('a')) setOpen(false); }}>
         <Link className="shell-logo" href="/"><i>M</i><span>Media Search</span></Link>
+        <div className="shell-scroll">
         <div className="shell-h">Utama</div>
         <nav className="shell-nav">
           <Link href="/" className={here === 'portal' && !cur ? 'on' : ''} data-home>Beranda</Link>
@@ -90,6 +91,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         <nav className="shell-nav">
           <Link href="/jobs" className={here === 'jobs' ? 'on' : ''}>Task Runner</Link>
         </nav>
+        </div>
         <div className="shell-foot"><Link className={'shell-help ' + (here === 'help' ? 'on' : '')} href="/help">HELP</Link><div id="shellFoot">Prototype</div></div>
       </aside>
 

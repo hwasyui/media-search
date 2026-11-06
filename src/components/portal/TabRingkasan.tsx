@@ -58,8 +58,8 @@ export default function TabRingkasan({ data }: OverviewCtx) {
         )}
       </div>
       <div id="aiBox" style={{ gridColumn: '1/-1' }}><AnalysisCard companyId={c.id} /></div>
-      <h4>Berita terpenting</h4>
-      <div className="grid" id="topNews" style={{ marginTop: 0 }}>
+      <h4 style={{ gridColumn: '1/-1' }}>Berita terpenting</h4>
+      <div className="grid" id="topNews" style={{ marginTop: 0, gridColumn: '1/-1' }}>
         {top && (top.length ? top.map((r) => <NewsCard key={r.id} r={r} showCompany={false} />)
           : <div className="empty" style={{ gridColumn: '1/-1' }}><b>Belum ada berita tersimpan</b>Tekan "Perbarui berita" untuk mengambilnya.</div>)}
       </div>

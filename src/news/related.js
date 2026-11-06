@@ -14,6 +14,8 @@ export function buildMatcher(company) {
   const raw = [];
   const add = (label, term) => { const t = clean(term); if (t.length >= 3) raw.push({ label, term: t }); };
   add('perusahaan', company.name);
+  add('perusahaan', company.ticker);      // kode saham (mis. BBCA) sering dipakai di judul berita pasar modal tanpa nama lengkap
+  add('perusahaan', company.ticker);      // kode saham (mis. BBCA) sering dipakai di judul tanpa nama lengkap
   for (const a of company.aliases || []) add('perusahaan', a);
   for (const s of company.stakeholders || []) {
     if (NOT_STAKEHOLDER.test(s.role || '')) continue;

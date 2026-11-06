@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false,      // lencana "N" bawaan mode dev menutupi tautan HELP di sidebar
   // Paket bawaan Node / berat: jangan di-bundle, biarkan di-require langsung dari node_modules.
   serverExternalPackages: ['mysql2', 'playwright', 'cheerio', '@modelcontextprotocol/sdk', 'google-news-url-decoder', 'fast-xml-parser'],
   async redirects() {
