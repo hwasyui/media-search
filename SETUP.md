@@ -35,7 +35,7 @@ MCP_DB_USER=...
 MCP_DB_PASSWORD=...
 ```
 
-Pengaturan opsional (nilai bawaan dalam kurung): `PORT` (3000), `GROQ_MODEL`, `GEMINI_MODEL`, `AI_MAX_ITEMS`, `FINANCIAL_TTL_HOURS`. Daftar lengkap ada di `.env.example`.
+Pengaturan opsional (nilai bawaan dalam kurung): `PORT` (3000), `GROQ_MODEL`, `GEMINI_MODEL`, `AI_MAX_ITEMS`, `FINANCIAL_TTL_HOURS`, `COVERS_MAX_MB` (300; batas cache gambar sampul di `data/covers`). Daftar lengkap ada di `.env.example`.
 
 ---
 

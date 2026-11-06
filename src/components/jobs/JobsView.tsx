@@ -2,6 +2,7 @@
 // Task Runner: jalankan pengambilan data di server (background), pantau log, lanjutkan job yang terputus. Pengganti jobs.html.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import StepsHelp from './StepsHelp';
+import CoverCache from './CoverCache';
 
 const ACTIVE = ['running', 'waiting'];
 const HIST_PER = 10;
@@ -243,6 +244,7 @@ export default function JobsView() {
               <div className="step"><button {...B('goFin')} onClick={() => start('financial', scope())}>Data keuangan emiten</button><small><span className="chip net">tanpa AI</span> harga dan laporan keuangan (hanya perusahaan terbuka)</small></div>
               <div className="step"><button {...B('goRescore')} onClick={() => start('rescore', scope())}>Hitung ulang keterkaitan nama</button><small><span className="chip net">tanpa AI</span> mencocokkan nama perusahaan dengan isi berita; cepat</small></div>
             </div>
+            <CoverCache />
           </div>
 
           <div>
