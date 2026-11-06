@@ -1,0 +1,23 @@
+name: Cek runner dan server
+
+# Uji cepat manual (Run workflow): memastikan runner self-hosted hidup dan server Media Search terjangkau.
+# Tidak menjalankan job apa pun, hanya membaca daftar job.
+on:
+  workflow_dispatch:
+
+jobs:
+  cek:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    env:
+      BASE: ${{ vars.MEDIA_SEARCH_URL || 'http://localhost:3062' }}
+    steps:
+      - name: Periksa bash, node, curl, dan server
+        shell: bash
+        run: |
+          echo "bash: $(bash --version | head -1)"
+          echo "node: $(node -v)"
+          echo "curl: $(curl --version | head -1)"
+          code=$(curl -s -m 30 -o /dev/null -w '%{http_code}' "$BASE/api/jobs" || true)
+          echo "GET $BASE/api/jobs -> HTTP $code"
+          [ "$code" = "200" ]
