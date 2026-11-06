@@ -140,7 +140,8 @@ async function persistItems(entity, cleanedItems, classified, report, log) {
   const byUrl = new Map((classified || []).map((it) => [it.url, it]));
   const items = cleanedItems.map((it) => byUrl.get(it.url) || it);
   report.saved = await saveNews(entity.id, items);
-  log(`DB: ${report.saved.saved} berita diproses, ${report.saved.inserted} baru${report.saved.duplicates ? `, ${report.saved.duplicates} duplikat dibuang (tidak disimpan)` : ''}`);
+  const s = report.saved, lama = Math.max(0, s.saved - s.inserted);
+  log(`DB: ${items.length} berita masuk → ${s.inserted} baru disimpan, ${lama} sudah ada di database (hanya diperbarui)${s.duplicates ? `, ${s.duplicates} duplikat judul dibuang` : ''}${s.replaced ? `, ${s.replaced} diganti versi penerbit lebih kredibel` : ''}`);
   return new Set(report.saved.droppedUrls || []);
 }
 
@@ -244,7 +245,8 @@ async function runCronCycle(opts, targets, cycle, ctx) {
   const rawItems = allResults.flatMap((r) => r.items);
   progress({ stage: 'clean', cycle, done: 0, total: 1 });
   const cleaned = cleanItems(rawItems);              // dedup setelah semua work selesai, jadi lintas chunk
-  log(`clean: ${cleaned.stats.output}/${cleaned.stats.input} lolos`);
+  const cs = cleaned.stats, buang = [cs.invalid && `${cs.invalid} tidak valid`, cs.spam && `${cs.spam} spam`, cs.duplicate && `${cs.duplicate} duplikat dalam crawl ini`].filter(Boolean).join(', ');
+  log(`clean: ${cs.output}/${cs.input} lolos${buang ? ` (dibuang: ${buang})` : ''}`);
 
   const report = {
     type: 'cron',
@@ -678,7 +680,8 @@ export async function runDossierAll(opts = {}, ctx = {}) {
 // ─── Job manager (di memori, satu job aktif sekaligus) ─
 const RUNNERS = { cron: runCron, portfolio: runPortfolio, content: runContent, analysis: runAnalysisAll, reclassify: runReclassify, rescore: runRescore, financial: runFinancial, dossier: runDossierAll, backfill: runBackfill };
 const ACTIVE = new Set(['running', 'waiting']);
-const JOBS = new Map();
+// Disimpan di globalThis: Next.js memuat modul ini terpisah untuk tiap route (dan instrumentation), sehingga Map biasa tidak terlihat oleh route lain.
+const JOBS = (globalThis.__msJobs ??= new Map());
 const MAX_KEEP = 20;
 const MAX_LOGS = 500;
 
